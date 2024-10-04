@@ -15,7 +15,7 @@ class Logger:
         self.logger.setLevel(logging.DEBUG)
 
         # Create a file handler to write logs to a file
-        file_handler = logging.FileHandler("output.log")
+        file_handler = logging.FileHandler("output/output.log")
         file_handler.setLevel(logging.DEBUG)
 
         # Create a console handler for output to the terminal
