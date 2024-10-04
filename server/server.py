@@ -1,5 +1,7 @@
 import socket
 import threading
+from json_rpc import JsonRpc
+from logger import Logger
 
 HOST = '0.0.0.0'  # Listen on all interfaces
 PORT = 65432      # Arbitrary non-privileged port
@@ -8,21 +10,27 @@ MAX_CLIENTS = 5   # Set the maximum number of concurrent clients
 # A lock to synchronize access to the client count
 client_count_lock = threading.Lock()
 current_clients = 0
+logger = Logger()
+TAG = "Server"
 
 def handle_client(conn, addr):
     global current_clients
     with conn:
-        print(f"Connected by {addr}")
+        logger.info(TAG, f"Connected by {addr}")
         with client_count_lock:
             current_clients += 1
-            print(f"Current number of clients: {current_clients}")
+            logger.info(TAG, f"Current number of clients: {current_clients}")
 
         while True:
             data = conn.recv(1024)
             if not data:
                 break
             command = data.decode('utf-8').strip()
-            print(f"Received command: {command}")
+            logger.info(TAG, f"Received command: {command}")
+
+            json_rpc = JsonRpc()
+            json_rpc.process_json(command)
+
             response = f"Executed command: {command}"
             conn.sendall(response.encode('utf-8'))
 
