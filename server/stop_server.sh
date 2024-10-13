@@ -1,4 +1,4 @@
-COMMAND_NAME="python3 server.py"
+COMMAND_NAME="sudo python server.py"
 
 # Find the PIDs of the processes matching the command name
 PIDS=$(pgrep -f "$COMMAND_NAME")
