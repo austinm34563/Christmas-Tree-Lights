@@ -28,9 +28,20 @@ def send_set_light_command():
     }
     return json.dumps(json_data)
 
+def send_trigger_effect_command():
+    effect = int(convert_integer_input(input("Enter an animation id: ")))
+    json_data = {
+        "method" : "trigger_effect",
+        "params" : {
+            "animation_id" : effect
+        }
+    }
+    return json.dumps(json_data)
+
 def construct_json(command) -> str:
     commands = {
-        1: send_set_light_command
+        1: send_set_light_command,
+        2: send_trigger_effect_command,
     }
     return commands[command]()
 
