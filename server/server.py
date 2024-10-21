@@ -1,7 +1,6 @@
 import socket
 import threading
 from json_rpc import JsonRpc
-from light_control import LightControl
 from logger import Logger
 
 HOST = '0.0.0.0'  # Listen on all interfaces
@@ -16,9 +15,8 @@ current_clients = 0
 logger = Logger()
 TAG = "Server"
 
-# light info
-LED_COUNT = 50
-lightControl = LightControl(LED_COUNT)
+# json rpc control
+json_rpc = JsonRpc()
 
 def handle_client(conn, addr):
     global current_clients
@@ -35,7 +33,6 @@ def handle_client(conn, addr):
             command = data.decode('utf-8').strip()
             logger.info(TAG, f"Received command: {command}")
 
-            json_rpc = JsonRpc(lightControl)
             json_rpc.process_json(command)
 
             response = f"Executed command: {command}"
