@@ -27,6 +27,7 @@ class JsonRpc:
         }
         self.mLightControl = LightControl()
         self.mAnimationControl = None
+
     def process_json(self, json_str):
         try:
             json_obj = loads(json_str)
@@ -39,7 +40,6 @@ class JsonRpc:
 
         self._call_command(json_obj[METHOD_TAG], json_obj[PARAMS_TAG])
         return True
-
 
     def _validate_json(self, json_obj):
         if not isinstance(json_obj, dict):
@@ -114,6 +114,7 @@ class JsonRpc:
             AnimationId.Chase.value: Chase,
             AnimationId.TwinkleStars.value: TwinkleStars,
             AnimationId.CandleFlicker.value: CandleFlicker,
+            AnimationId.Bouncing.value: Bouncing,
         }
 
         # Instantiate the appropriate animation class
