@@ -4,6 +4,7 @@ import time
 import threading
 import random
 from logger import Logger
+from animation_constants import CANDLE_COLORS
 
 logger = Logger()
 
@@ -123,6 +124,8 @@ class Fade(Animation):
         elif self.current_brightness <= 0:
             self.current_brightness = 0
             self.fade_direction = 1
+            # Rotate the colors
+            self.colors.append(self.colors.pop(0))  # Shift colors by 1
 
         # Calculate adjusted colors only if brightness changed
         for i in range(self.pixel_count):
@@ -243,20 +246,65 @@ class CandleFlicker(Animation):
         self.pixels[:] = current_colors
         self.show()  # Update the NeoPixel strip
 
+
+class Bouncing(Animation):
+    def __init__(self, pixel_count, pixels, colors, delay=0.01, block_size=5):
+        super().__init__(pixel_count, pixels, delay)
+        self.colors = colors
+        self.block_size = block_size
+        self.indexInner = pixel_count // 2 - block_size
+        self.indexOutter = pixel_count // 2
+        self.indexInnerMoveRight = False
+        self.indexOutterMoveRight = True
+
+        self.TAG = "Bouncing"
+        logger.info(self.TAG, "Loading the Bouncing animation")
+
+    def update(self):
+        self.pixels.fill(self.colors[1])
+
+        # Determine ranges for inner and outer blocks
+        inner_start = max(0, int(self.indexInner))
+        inner_end = min(self.pixel_count - 1, int(self.indexInner + self.block_size - 1))
+        outer_start = max(0, int(self.indexOutter))
+        outer_end = min(self.pixel_count - 1, int(self.indexOutter + self.block_size - 1))
+
+        # Set pixels for inner and outer blocks
+        self.pixels[inner_start:inner_end + 1] = [self.colors[0]] * (inner_end - inner_start + 1)
+        self.pixels[outer_start:outer_end + 1] = [self.colors[0]] * (outer_end - outer_start + 1)
+
+        # Calculate distance and movement speeds
+        distance = self.indexOutter - (self.indexInner + self.block_size)
+        speed_factor = max(1, abs(distance) // 2)
+        move_amount = 1.0 / speed_factor if distance > 0 else speed_factor
+
+        # Update indices for bouncing
+        self.indexInner += move_amount if self.indexInnerMoveRight else -move_amount
+        self.indexOutter += move_amount if self.indexOutterMoveRight else -move_amount
+
+        # Boundary conditions for inner block
+        if self.indexInner <= 0:
+            self.indexInnerMoveRight = True
+        elif self.indexInner >= (self.pixel_count // 2 - self.block_size):
+            self.indexInnerMoveRight = False
+
+        # Boundary conditions for outer block
+        if self.indexOutter >= self.pixel_count - self.block_size:
+            self.indexOutterMoveRight = False
+        elif self.indexOutter <= (self.pixel_count // 2):
+            self.indexOutterMoveRight = True
+
+        # Ensure outer block does not overlap with inner block
+        if self.indexOutter <= self.indexInner + self.block_size:
+            self.indexOutterMoveRight = True  # Change direction if they overlap
+
+        self.show()
+
 # main method below can be used to test animations
 # if __name__ == '__main__':
 #     pixel_count = 50  # Number of LEDs
 #     pin = board.D18   # Pin where the LED strip is connected
-
-#     animation = CandleFlicker(pixel_count, pin)
+#     DEFAULT_COLOR_SCHEME = [(255, 0, 0), (0, 255, 0)]
+#     pixels = neopixel.NeoPixel(pin, pixel_count, pixel_order=neopixel.RGB, auto_write=False)
+#     animation = <ANIMATION>(pixel_count, pixels, DEFAULT_COLOR_SCHEME, delay=0.01, block_size=5)
 #     animation.run_animation()
-
-#     # Run the animation for 10 seconds
-#     try:
-#         time.sleep(10)
-#     finally:
-#         # Stop the animation after 10 seconds
-#         animation.stop_animation()
-
-#     pixels = neopixel.NeoPixel(pin, pixel_count, pixel_order=neopixel.RGB)
-#     pixels.fill(0)

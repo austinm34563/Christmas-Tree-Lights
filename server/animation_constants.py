@@ -16,3 +16,4 @@ class AnimationId(Enum):
     Chase=4
     TwinkleStars=5
     CandleFlicker=6
+    Bouncing=7
