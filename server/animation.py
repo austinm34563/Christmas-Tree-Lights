@@ -5,6 +5,8 @@ import threading
 import random
 from logger import Logger
 from animation_constants import CANDLE_COLORS
+import math
+import board
 
 logger = Logger()
 
@@ -300,11 +302,59 @@ class Bouncing(Animation):
 
         self.show()
 
+class Twinkle(Animation):
+    def __init__(self, pixel_count, pixels, colors, delay=0.01, seed=42, delta=1):
+        super().__init__(pixel_count, pixels, delay)
+        self.pixels = pixels
+        self.num_pixels = pixel_count
+        self.colors = colors
+        self.seed = seed
+        self.delta = delta
+        self.mDelta = 0
+        self.random_start_points = []
+        self.TAG = "Twinkle"
+
+        # Initialize the pseudo-random starting points for each pixel
+        random.seed(self.seed)
+        for _ in range(self.num_pixels):
+            self.random_start_points.append(random.randint(0, 255))
+
+    def triwave8(self, x):
+        """Approximate FastLED's triwave8 function using a sine wave."""
+        return int(127.5 * (1 + math.sin(math.radians(x * 360 / 255))))
+
+    def dim8_lin(self, x):
+        """Approximate FastLED's dimming function."""
+        return int((x / 255) ** 2.5 * 255)
+
+    def update(self):
+        for i in range(self.num_pixels):
+            # Calculate brightness based on wave function and random starting point
+            start_point = self.random_start_points[i]
+            radians = (start_point + self.mDelta) % 255
+            raw_brightness = self.triwave8(radians)
+            brightness = self.dim8_lin(raw_brightness)
+
+            # Scale color by brightness
+            color = self.colors[i % len(self.colors)]
+            scaled_color = (
+                int(color[0] * brightness / 255),
+                int(color[1] * brightness / 255),
+                int(color[2] * brightness / 255)
+            )
+
+            # Set pixel color
+            self.pixels[i] = scaled_color
+
+        # Increment the delta for the next update
+        self.mDelta += self.delta
+        self.pixels.show()
+
 # main method below can be used to test animations
 # if __name__ == '__main__':
-#     pixel_count = 50  # Number of LEDs
+#     pixel_count = 100  # Number of LEDs
 #     pin = board.D18   # Pin where the LED strip is connected
 #     DEFAULT_COLOR_SCHEME = [(255, 0, 0), (0, 255, 0)]
 #     pixels = neopixel.NeoPixel(pin, pixel_count, pixel_order=neopixel.RGB, auto_write=False)
-#     animation = <ANIMATION>(pixel_count, pixels, DEFAULT_COLOR_SCHEME, delay=0.01, block_size=5)
+#     animation = Twinkle(pixel_count, pixels, DEFAULT_COLOR_SCHEME, delay=0.01)
 #     animation.run_animation()
