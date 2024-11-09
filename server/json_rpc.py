@@ -115,6 +115,7 @@ class JsonRpc:
             AnimationId.TwinkleStars.value: TwinkleStars,
             AnimationId.CandleFlicker.value: CandleFlicker,
             AnimationId.Bouncing.value: Bouncing,
+            AnimationId.Twinkle.value: Twinkle,
         }
 
         # Instantiate the appropriate animation class
