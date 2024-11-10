@@ -18,3 +18,5 @@ class AnimationId(Enum):
     CandleFlicker=6
     Bouncing=7
     Twinkle=8
+    TwinkleCycle=9
+    Cover=10
