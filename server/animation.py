@@ -171,20 +171,24 @@ class Chase(Animation):
         self.TAG = "Chase"
         logger.info(self.TAG, "Loading the Chase animation")
 
-    def _update(self):
-        # Fill the entire strip with the background color (colors[1])
+        # Initialize strip with background color
         self.pixels.fill(self.colors[1])
 
-        # Set the block of pixels to the chase color (colors[0])
+        # Set initial block to chase color
         for i in range(self.block_size):
-            # Use modulo to wrap the index around if it exceeds pixel_count
-            self.pixels[(self.index + i) % self.pixel_count] = self.colors[0]
+            self.pixels[i % self.pixel_count] = self.colors[0]
+        self._show()
+
+    def _update(self):
+        # Clear the first pixel of the previous block
+        self.pixels[self.index % self.pixel_count] = self.colors[1]
+
+        # Set the new tail pixel of the block to the chase color
+        new_tail = (self.index + self.block_size) % self.pixel_count
+        self.pixels[new_tail] = self.colors[0]
 
         # Move the starting index for the next update
-        self.index += 1
-        if self.index >= self.pixel_count:
-            self.index = 0
-
+        self.index = (self.index + 1) % self.pixel_count
 
 
 class TwinkleStars(Animation):
