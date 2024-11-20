@@ -159,3 +159,6 @@ class JsonRpc:
             self.mAnimationControl.run_animation()
         else:
             logger.error(TAG, "Error: Could not run animation")
+
+    # TODOs
+    #  - Be able to query basic info (Animation ids, Music songs, Color palettes)
