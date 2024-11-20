@@ -5,12 +5,11 @@ from pydub import AudioSegment
 import pyaudio
 import time
 import threading
-from os import listdir
-from os.path import isfile, join
+from os.path import join
 from logger import Logger
+from song_scraper import *
 
 logger = Logger()
-SONG_DIRECTORY = "./songs"
 
 class MusicSync:
     def __init__(self, pixels, audio_file, color_palette, chunk_size=1024):
@@ -91,10 +90,6 @@ class MusicSync:
         if not callable(callback):
             raise ValueError("The provided callback must be callable.")
         self.timing_callback = callback
-
-    @staticmethod
-    def get_songs():
-        return [file for file in listdir(SONG_DIRECTORY) if isfile(join(SONG_DIRECTORY, file)) and file.endswith('.mp3')]
 
     def _smooth_magnitudes(self, magnitudes, alpha=0.2):
         """Smooth magnitudes using exponential moving average."""
@@ -266,7 +261,7 @@ if __name__ == "__main__":
         # print(f"Current time: {current_time:.2f}s / {total_time:.2f}s")
         pass
 
-    available_songs = MusicSync.get_songs()
+    available_songs = get_songs()
     available_songs.sort()
     for ind, song in enumerate(available_songs):
         print(f"{ind+1}. {song}")
