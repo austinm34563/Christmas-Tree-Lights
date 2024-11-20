@@ -1,17 +1,42 @@
 
-from json import loads
+from json import loads, dumps
 from logger import Logger
 from light_control import LightControl
 from animation_constants import *
 from animation import *
+from music_sync import MusicSync
+from enum import Enum
+from song_scraper import *
 
+# json-rpc commnd tags
 METHOD_TAG = "method"
 PARAMS_TAG = "params"
+RESULT_TAG = "result"
+ERROR_TAG = "error"
+ERROR_MESSAGE_TAG = "message"
+ERROR_CODE_TAG = "code"
+
+# params tags
 COLOR_TAG = "color"
 PALLETE_TAG = "pallete"
 SPEED_TAG = "speed"
 COLOR_SCHEME_TAG = "color_scheme"
 ANIMATION_EFFECT_ID_TAG = "animation_id"
+SONG_FILE_TAG = "song"
+
+# error codes
+PARSE_ERROR = -32700
+INVALID_REQUEST = -32600
+METHOD_NOT_FOUND = -32601
+INVALID_PARAMS = -32602
+
+# error messages
+ERRROR_MESSAGES = {
+    PARSE_ERROR : "Parse error",
+    INVALID_REQUEST : "Invalid Request",
+    METHOD_NOT_FOUND : "Method not found",
+    INVALID_PARAMS : "Invalid params",
+}
 
 VALID_TAGS = [METHOD_TAG, PARAMS_TAG]
 
@@ -42,22 +67,26 @@ class JsonRpc:
             "set_light" : self._set_light,
             "set_pallete" : self._set_pallete,
             "trigger_effect" : self._trigger_effect,
+            "play_song" : self._play_song,
+            # "stop_song" : self._stop_song,
+            # "get_palletes" : self._get_palletes,
+            "get_songs" : self._get_songs,
         }
-        self.mLightControl = LightControl()
-        self.mAnimationControl = None
+        self.light_controller = LightControl()
+        self.animation_controller = None
+        self.music_sync = None
 
     def process_json(self, json_str):
         try:
             json_obj = loads(json_str)
         except:
             logger.error(TAG, "Error: Could not read json")
-            return False
+            return self._construct_error(PARSE_ERROR)
 
         if not self._validate_json(json_obj):
-            return False
+            return self._construct_error(INVALID_REQUEST)
 
-        self._call_command(json_obj[METHOD_TAG], json_obj[PARAMS_TAG])
-        return True
+        return self._call_command(json_obj[METHOD_TAG], json_obj[PARAMS_TAG])
 
     def _validate_json(self, json_obj):
         if not isinstance(json_obj, dict):
@@ -71,13 +100,30 @@ class JsonRpc:
 
         return True
 
+    def _construct_error(self, code):
+        return dumps(
+            {
+                ERROR_TAG:
+                {
+                    ERROR_CODE_TAG: code,
+                    ERROR_MESSAGE_TAG: ERRROR_MESSAGES.get(code, "Unknown error")
+                }
+            }
+        )
+
+    def _construct_result(self, result):
+        return dumps(
+            {
+                RESULT_TAG: result
+            }
+        )
+
     def _call_command(self, command, params):
         if self.mCommands.get(command) is None:
             logger.error(TAG, "Error: JSON-RPC command not found")
-            return False
+            return _construct_error(METHOD_NOT_FOUND)
 
-        self.mCommands[command](params)
-        return True
+        return self.mCommands[command](params)
 
     def _validate_color_list(self, color_list, default_list):
         if color_list is None or len(color_list) == 0:
@@ -89,33 +135,40 @@ class JsonRpc:
         logger.info(TAG, "Calling set light")
         if params.get(COLOR_TAG) is None:
             logger.error(TAG, "Error: invalid color")
-            return
+            return self._construct_error(INVALID_PARAMS)
 
         # stop any animations that are playing
-        if self.mAnimationControl is not None:
-            self.mAnimationControl.stop_animation()
-            self.mAnimationControl = None
+        if self.animation_controller is not None:
+            self.animation_controller.stop_animation()
+            self.animation_controller = None
 
-        self.mLightControl.setColor(int(params.get(COLOR_TAG), 16))
+        if self.music_sync is not None:
+            self.music_sync.stop_sync()
+            self.music_sync = None
+
+        self.light_controller.setColor(int(params.get(COLOR_TAG), 16))
+        return self._construct_result(True)
 
     def _set_pallete(self, params):
         logger.info(TAG, "Calling set pallete")
         if params.get(PALLETE_TAG) is None:
             logger.error(TAG, "Error: invalid pallete")
-            return
+            return self._construct_error(INVALID_PARAMS)
 
         # stop any animation that are playing
-        if self.mAnimationControl is not None:
-            self.mAnimationControl.stop_animation()
-            self.mAnimationControl = None
+        if self.animation_controller is not None:
+            self.animation_controller.stop_animation()
+            self.animation_controller = None
 
-        if self.mAnimationControl is not None:
-            self.mAnimationControl.stop_animation()
+        if self.music_sync is not None:
+            self.music_sync.stop_sync()
+            self.music_sync = None
 
         color_pallete = params.get(PALLETE_TAG)
         color_pallete = self._validate_color_list(color_pallete, DEFAULT_COLOR_PALLETE)
 
-        self.mLightControl.setColorPallete(color_pallete)
+        self.light_controller.setColorPallete(color_pallete)
+        return self._construct_result(True)
 
     def _trigger_effect(self, params):
         logger.info(TAG, "Triggering some effect")
@@ -123,18 +176,22 @@ class JsonRpc:
 
         if effect_id is None:
             logger.error(TAG, "Error: animation effect id not found")
-            return
+            return self._construct_error(INVALID_PARAMS)
 
         if effect_id not in AnimationId._value2member_map_:
             logger.error(TAG, f"Error: animation effect invalid: {effect_id}")
-            return
+            return self._construct_error(INVALID_PARAMS)
 
-        pixels = self.mLightControl.get_pixels()
-        pixel_count = self.mLightControl.get_size()
+        pixels = self.light_controller.get_pixels()
+        pixel_count = self.light_controller.get_size()
         color_scheme = params.get(COLOR_SCHEME_TAG)
 
-        if self.mAnimationControl is not None:
-            self.mAnimationControl.stop_animation()
+        if self.animation_controller is not None:
+            self.animation_controller.stop_animation()
+
+        if self.music_sync is not None:
+            self.music_sync.stop_sync()
+            self.music_sync = None
 
         # Set the default color scheme based on the animation effect
         color_scheme = self._validate_color_list(color_scheme, CANDLE_COLORS if effect_id == AnimationId.CandleFlicker.value else DEFAULT_COLOR_SCHEME)
@@ -150,15 +207,43 @@ class JsonRpc:
 
         # Instantiate the appropriate animation class
         if effect_id in effect_classes:
-            self.mAnimationControl = effect_classes[effect_id](pixel_count, pixels, color_scheme, speed=speed)
+            self.animation_controller = effect_classes[effect_id](pixel_count, pixels, color_scheme, speed=speed)
         else:
             logger.error(TAG, "Error: No associated animation")
-            return
+            return self._construct_error(INVALID_PARAMS)
 
-        if self.mAnimationControl is not None:
-            self.mAnimationControl.run_animation()
-        else:
+        if self.animation_controller is None:
             logger.error(TAG, "Error: Could not run animation")
+            return self._construct_error(INVALID_PARAMS)
+
+        self.animation_controller.run_animation()
+        return self._construct_result(True)
+
+    def _play_song(self, params):
+        song = params.get(SONG_FILE_TAG)
+        if song is None:
+            logger.error(TAG, "Error: Song not provided")
+            return self._construct_error(INVALID_PARAMS)
+
+        color_pallete = self._validate_color_list(params.get(PALLETE_TAG), DEFAULT_COLOR_PALLETE)
+
+        if self.animation_controller is not None:
+            self.animation_controller.stop_animation()
+
+        if self.music_sync is not None:
+            self.music_sync.stop_sync()
+
+        pixels = self.light_controller.get_pixels()
+        self.music_sync = MusicSync(pixels, song, color_pallete)
+        self.music_sync.start_sync()
+        return self._construct_result(True)
+
+    # def _stop_song(self, params):
+
+    def _get_songs(self, params):
+        return self._construct_result(get_mp3_metadata())
+
+
 
     # TODOs
     #  - Be able to query basic info (Animation ids, Music songs, Color palettes)

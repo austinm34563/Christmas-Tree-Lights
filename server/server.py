@@ -32,10 +32,8 @@ def handle_client(conn, addr):
                 break
             command = data.decode('utf-8').strip()
             logger.info(TAG, f"Received command: {command}")
-
-            json_rpc.process_json(command)
-
-            response = f"Executed command: {command}"
+            response = json_rpc.process_json(command)
+            logger.debug(TAG, f"Sending response: {response}")
             conn.sendall(response.encode('utf-8'))
 
     with client_count_lock:
