@@ -7,6 +7,7 @@ from animation import *
 from music_sync import MusicSync
 from enum import Enum
 from song_scraper import *
+from color_palettes import COLOR_PALETTES
 
 # json-rpc commnd tags
 METHOD_TAG = "method"
@@ -69,8 +70,9 @@ class JsonRpc:
             "trigger_effect" : self._trigger_effect,
             "play_song" : self._play_song,
             # "stop_song" : self._stop_song,
-            # "get_palletes" : self._get_palletes,
+            "get_palettes" : self._get_palletes,
             "get_songs" : self._get_songs,
+            "get_effects" : self._get_effects,
         }
         self.light_controller = LightControl()
         self.animation_controller = None
@@ -121,7 +123,7 @@ class JsonRpc:
     def _call_command(self, command, params):
         if self.mCommands.get(command) is None:
             logger.error(TAG, "Error: JSON-RPC command not found")
-            return _construct_error(METHOD_NOT_FOUND)
+            return self._construct_error(METHOD_NOT_FOUND)
 
         return self.mCommands[command](params)
 
@@ -130,6 +132,12 @@ class JsonRpc:
             logger.warning(TAG, "Warning: no color list provided. Defaulting to Christmas theme.")
             color_list = default_list
         return color_list
+
+    def _convert_hex_to_colors(self, color_list):
+        return [
+            ((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF) if isinstance(color, int) else color
+            for color in color_list
+        ]
 
     def _set_light(self, params):
         logger.info(TAG, "Calling set light")
@@ -197,10 +205,7 @@ class JsonRpc:
         color_scheme = self._validate_color_list(color_scheme, CANDLE_COLORS if effect_id == AnimationId.CandleFlicker.value else DEFAULT_COLOR_SCHEME)
 
         # convert to list of tuples if values are integers
-        color_scheme = [
-            ((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF) if isinstance(color, int) else color
-            for color in color_scheme
-        ]
+        color_scheme = self._convert_hex_to_colors(color_scheme)
 
         # default speed to 1 if not defined
         speed = params.get(SPEED_TAG) if params.get(SPEED_TAG) is not None else 1
@@ -227,6 +232,9 @@ class JsonRpc:
 
         color_pallete = self._validate_color_list(params.get(PALLETE_TAG), DEFAULT_COLOR_PALLETE)
 
+        # convert to list of tuples if values are integers
+        color_pallete = self._convert_hex_to_colors(color_pallete)
+
         if self.animation_controller is not None:
             self.animation_controller.stop_animation()
 
@@ -243,7 +251,11 @@ class JsonRpc:
     def _get_songs(self, params):
         return self._construct_result(get_mp3_metadata())
 
+    def _get_palletes(self, params):
+        return self._construct_result(COLOR_PALETTES)
 
+    def _get_effects(self, params):
+        return self._construct_result(ANIMATIONS)
 
     # TODOs
     #  - Be able to query basic info (Animation ids, Music songs, Color palettes)
