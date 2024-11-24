@@ -5,11 +5,22 @@ from os.path import isfile, join
 
 SONG_DIRECTORY = "./songs"
 
+
 def get_songs():
+    """
+    Gets a list of mp3's in the "songs" directory.
+
+    :returns: List of available mp3s in "songs" directory
+    """
     return [file for file in listdir(SONG_DIRECTORY) if isfile(join(SONG_DIRECTORY, file)) and file.endswith('.mp3')]
 
 
 def get_mp3_metadata():
+    """
+    Scrape mp3 metadata from "songs" directory. Returns the mp3 metadata in json format.
+
+    :returns: dictionary containing list of songs in "songs" directory along with corresponding metadata.
+    """
     song_files = get_songs()
     metadata_dict = {}
 

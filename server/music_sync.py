@@ -58,15 +58,13 @@ class MusicSync:
             f" - Sample Width: {self.audio.sample_width}\n"
             f" - Frame Width: {self.audio.frame_width}\n"
         )
-        time.sleep(2)
-        logger.info(self.tag, "Ready to sync")
 
     def start_sync(self):
         """Start the music synchronization in a separate thread."""
         if self._thread and self._thread.is_alive():
             logger.warning(self.tag, "MusicSync is already running.")
             return
-        logger.info(self.tag, "Starting sync")
+        logger.info(self.tag, "Start sync requested")
         # Clear the stop event and start a new thread
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run_sync)
@@ -183,6 +181,8 @@ class MusicSync:
 
     def _run_sync(self):
         """Internal method to run the sync_with_music loop with enhanced smoothness."""
+        time.sleep(2)
+        logger.info(self.tag, "Sync started")
         self._prepare_frames()
 
         # Start audio playback in a separate thread

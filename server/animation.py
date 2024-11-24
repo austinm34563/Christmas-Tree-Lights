@@ -12,6 +12,14 @@ logger = Logger()
 
 class Animation:
     def __init__(self, pixel_count, pixels, delay=0.01, speed=1):
+        """
+        Constructor for Animation class.
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        """
         self.pixel_count = pixel_count
         self.pixels = pixels  # Now accept a pre-initialized NeoPixel object
         self.delay = delay / speed
@@ -24,12 +32,15 @@ class Animation:
             logger.info(self.TAG, f"Speed is {speed}. Delay {'increased' if speed > 1 else 'decreased'} from {delay} to {self.delay}")
 
     def __del__(self):
+        """ Desturctor of Animation object. """
         self.stop_animation()
 
     def _show(self):
+        """ Helper method for stopping animation. """
         self.pixels.show()  # Call the NeoPixel show method
 
     def _update_with_timing(self):
+        """ Update call with timing tracked. """
         current_time = time.monotonic()
         elapsed_time = current_time - self.last_update_time
 
@@ -50,6 +61,7 @@ class Animation:
         return 0  # If no update occurred, return 0
 
     def run_animation(self):
+        """ Runs animation loaded from constructor. """
         logger.info(self.TAG, "Animation started")
         if self._thread is None or not self._thread.is_alive():
             self._stop_event.clear()
@@ -57,6 +69,7 @@ class Animation:
             self._thread.start()
 
     def stop_animation(self):
+        """ Stops the animation if running.  """
         logger.info(self.TAG, "Animation stopped")
         self._stop_event.set()  # Signal the thread to stop
         if self._thread is not None:
@@ -64,6 +77,7 @@ class Animation:
             self._thread = None
 
     def _animation_loop(self):
+        """ Animation loop used for thread. """
         while not self._stop_event.is_set():
             self._update_with_timing()
             self._show()
@@ -72,6 +86,15 @@ class Animation:
 
 class CycleFade(Animation):
     def __init__(self, pixel_count, pixels, colors, steps=255, delay=0.01, speed=1):
+        """
+        Constructor for CycleFade class.
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param colors: Color scheme of animation
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        """
         super().__init__(pixel_count, pixels, delay, speed)
         self.colors = colors
         self.steps = steps
@@ -108,6 +131,16 @@ class CycleFade(Animation):
 
 class Fade(Animation):
     def __init__(self, pixel_count, pixels, colors, steps=255, delay=0.01, speed=1):
+        """
+        Constructor for Fade class.
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param colors: Color scheme of animation
+        :param steps: Number of steps used for fade animation.
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        """
         super().__init__(pixel_count, pixels, delay, speed)
         self.colors = colors
         self.steps = steps
@@ -148,6 +181,15 @@ class Fade(Animation):
 
 class Blink(Animation):
     def __init__(self, pixel_count, pixels, colors, delay=0.5, speed=1):
+        """
+        Constructor for Blink class.
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param colors: Color scheme of animation
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        """
         super().__init__(pixel_count, pixels, delay, speed)
         self.colors = colors
         self.current_color_index = 0
@@ -164,6 +206,16 @@ class Blink(Animation):
 
 class Chase(Animation):
     def __init__(self, pixel_count, pixels, colors, delay=0.1, speed=1, block_size=1):
+        """
+        Constructor for Chase class.
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param colors: Color scheme of animation
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        "param block_size: Specify the size of the chase block
+        """
         super().__init__(pixel_count, pixels, delay, speed)
         self.colors = colors
         self.index = 0
@@ -193,6 +245,16 @@ class Chase(Animation):
 
 class TwinkleStars(Animation):
     def __init__(self, pixel_count, pixels, colors, twinkle_rate=0.05, delay=0.1, speed=1):
+        """
+        Constructor for TwinkleStars class.
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param colors: Color scheme of animation
+        :param twinkle_rate: Probability any pixel will "twinkle" on an update
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        """
         super().__init__(pixel_count, pixels, delay, speed)
         self.base_color = colors[0]  # The base color when not twinkling
         self.twinkle_color = colors[1]  # The brighter twinkle color
@@ -213,6 +275,17 @@ class TwinkleStars(Animation):
 
 class CandleFlicker(Animation):
     def __init__(self, pixel_count, pixels, colors=None, delay=0.1, speed=1, min_brightness=0, max_brightness=1.0):
+        """
+        Constructor for CandleFlicker class.
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param colors: Color scheme of animation
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        :param min_brightness: Minimum brightness for flickering
+        :param max_brightness: Maximum brightness for flickering
+        """
         super().__init__(pixel_count, pixels, delay, speed)
 
         # Initialize the colors for each pixel
@@ -250,6 +323,16 @@ class CandleFlicker(Animation):
 
 class Bouncing(Animation):
     def __init__(self, pixel_count, pixels, colors, delay=0.01, speed=1, block_size=5):
+        """
+        Constructor for Bouncing class.
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param colors: Color scheme of animation
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        :param block_size: Block size of the bouncing animation
+        """
         super().__init__(pixel_count, pixels, delay, speed)
         self.colors = colors
         self.block_size = block_size
@@ -302,6 +385,17 @@ class Bouncing(Animation):
 
 class Twinkle(Animation):
     def __init__(self, pixel_count, pixels, colors, delay=0.01, speed=1, seed=42, delta=1):
+        """
+        Constructor for Twinkle class.
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param colors: Color scheme of animation
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        :param seed: Random seed
+        :param delta: Tracks change rate of brightness per pixel
+        """
         super().__init__(pixel_count, pixels, delay, speed)
         self.colors = colors
         self.seed = seed
@@ -345,6 +439,17 @@ class Twinkle(Animation):
 
 class TwinkleCycle(Animation):
     def __init__(self, pixel_count, pixels, colors, delay=0.01, speed=1, seed=42, delta=1):
+        """
+        Constructor for TwinkleCycle class.
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param colors: Color scheme of animation
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        :param seed: Random seed
+        :param delta: Tracks change rate of brightness per pixel
+        """
         super().__init__(pixel_count, pixels, delay, speed)
         self.colors = colors
         self.seed = seed
@@ -399,6 +504,15 @@ class TwinkleCycle(Animation):
 
 class Cover(Animation):
     def __init__(self, pixel_count, pixels, colors, delay=0.03, speed=1):
+        """
+        Constructor for Cover class.
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param colors: Color scheme of animation
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        """
         super().__init__(pixel_count, pixels, delay, speed)
         self.current_color_index = 0
         self.pixel_index = 0
