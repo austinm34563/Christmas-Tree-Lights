@@ -1,6 +1,5 @@
 import socket
 import json
-from client_consts import *
 from time import sleep
 
 HOST = 'raspberrypi.local'  # Replace with the Raspberry Pi's IP address on the Wi-Fi network
