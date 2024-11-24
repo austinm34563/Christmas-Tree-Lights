@@ -1,44 +1,55 @@
 import socket
 import json
 from client_consts import *
+from time import sleep
 
 HOST = 'raspberrypi.local'  # Replace with the Raspberry Pi's IP address on the Wi-Fi network
 PORT = 65432          # The port used by the server
 
-"""
-Helper method to prompt the user to pick a command.
+CHRISTMAS_PALETTES = {}
+ANIMATION_OPTIONS = {}
 
-@return Associated command id
-"""
+
 def pick_command():
+    """
+    Helper method to prompt the user to pick a command.
+
+    :return: Associated command id
+    """
     print("Here are the list of commands:")
     print("1. Set Light")
     print("2. Pick Effect")
     print("3. Pick Pallette")
+    print("4. Start Music Sync")
+    print("5. Get songs")
+    print("6. Show Palettes")
+    print("7. Show Animation/Effects List")
     return input("Enter command to send to server (or 'exit' to quit): ")
 
 
-"""
-Helper method to allow users to enter hex or dec for colors. Ideally
-users will enter colors in 0xRRGGBB format, but the option is there if
-they want to ented the value in dec.
 
-@param integer: integer string value
-@returns converted string into int
-"""
 def convert_integer_input(integer: str):
+    """
+    Helper method to allow users to enter hex or dec for colors. Ideally
+    users will enter colors in 0xRRGGBB format, but the option is there if
+    they want to ented the value in dec.
+
+    :param integer: integer string value
+    :return: converted string into int
+    """
     # Check if the input starts with '0x' or '0X' to identify hex
     return int(integer, 16) \
            if integer.startswith("0x") or integer.startswith("0X") \
            else int(integer)
 
-"""
-Prompts user to enter color info. This color info is then sent to the
-rasberry pi server via JSON-RPC.
 
-@returns associated JSON-RPC request string
-"""
 def send_set_light_command():
+    """
+    Prompts user to enter color info. This color info is then sent to the
+    rasberry pi server via JSON-RPC.
+
+    :return: associated JSON-RPC request string
+    """
     color = convert_integer_input(input("Enter a color: "))
     json_data = {
         "method" : "set_light",
@@ -49,30 +60,35 @@ def send_set_light_command():
     return json.dumps(json_data)
 
 
-"""
-Prompts user for color pallete info. Once info is received, the JSON
-data is created and returned.
 
-@return associated JSON-RPC request string
-"""
 def send_trigger_effect_command():
+    """
+    Prompts user for trigger info. Once info is received,
+    info is converted to JSON and sent to rasberry pi.
 
+    :return: associated JSON-RPC request string
+    """
     # present animation IDs
     print()
-    for index, effect in enumerate(ANIMATION_EFFECT_NAMES):
-        print(f"{index + 1}. {effect}")
-    effect = int(input("Enter an animation id from above: "))
+    names = list(ANIMATION_OPTIONS.keys())
+    for index, effect in enumerate(names):
+        info = ANIMATION_OPTIONS[effect]
+        description = info["description"]
+        print(f"{index + 1}. {effect}:\n  - {description}")
+    effect_index = int(input("Enter an animation id from above: "))
+    effect = ANIMATION_OPTIONS[names[effect_index - 1]]["id"]
 
     # specify color scheme/palette options
     print("\nPick the following Color Scheme:")
-    for index, pallete in enumerate(CHRISTMAS_PALETTE_NAMES):
+    names = list(CHRISTMAS_PALETTES.keys())
+    for index, pallete in enumerate(names):
         print(f"{index + 1}. {pallete}")
 
     # specifies an option for pre-loaded color on pi server
-    print(f"{len(CHRISTMAS_PALETTE_NAMES) + 1}. Default colors loaded on pi server.")
+    print(f"{len(names) + 1}. Default colors loaded on pi server.")
 
     scheme_choice = abs(int(input("Choose a scheme from the list above: ")))
-    scheme = CHRISTMAS_PALETTES[scheme_choice - 1] if scheme_choice <= len(CHRISTMAS_PALETTE_NAMES) else []
+    scheme = CHRISTMAS_PALETTES[names[scheme_choice - 1]] if scheme_choice <= len(names) else []
 
     # present speed options
     print("Enter a desired speed.\n - 1.0 = default\n - 2.0 = double speed\n - 0.5 = half speed")
@@ -89,49 +105,127 @@ def send_trigger_effect_command():
     }
     return json.dumps(json_data)
 
-"""
-Prompts user for color pallete info. Once info is received, the JSON
-data is created and returned.
 
-@return associated JSON-RPC request string
-"""
 def send_set_pallete_command():
+    """
+    Prompts user for color pallete info. Once info is received, the JSON
+    data is created and returned.
+
+    @return associated JSON-RPC request string
+    """
     print("Pick the following Pallete:")
-    for index, pallete in enumerate(CHRISTMAS_PALETTE_NAMES):
+    names = list(CHRISTMAS_PALETTES.keys())
+    for index, pallete in enumerate(names):
         print(f"{index + 1}. {pallete}")
     pallete_choice = int(input("Choose a pallete from the list above: "))
-    if pallete_choice > len(CHRISTMAS_PALETTE_NAMES) or pallete_choice <= 0:
+    if pallete_choice > len(names) or pallete_choice <= 0:
         print("Invalid coice, defaulting to 1")
         pallete_choice = 1
     json_data = {
         "method" : "set_pallete",
         "params" : {
-            "pallete" : CHRISTMAS_PALETTES[pallete_choice - 1]
+            "pallete" : CHRISTMAS_PALETTES[names[pallete_choice - 1]]
         }
     }
     return json.dumps(json_data)
 
-"""
-Constructs a JSON-RPC request based on the provided command. This
-will call an associated method that returns the associated JSON-RPC
-request as a string.
 
-@param command: command id lookup. Ultimately points to function to call
-@return JSON-RPC request string
-"""
+def send_start_music_sync_command():
+    """
+    Prompts user for music sync info.
+
+    :return: associated JSON-RPC request string
+    """
+    # present animation IDs
+    print()
+    song = input("Enter a song mp3: ")
+
+    # specify color scheme/palette options
+    print("\nPick the following Color Scheme:")
+    names = list(CHRISTMAS_PALETTES.keys())
+    for index, pallete in enumerate(names):
+        print(f"{index + 1}. {pallete}")
+
+    # specifies an option for pre-loaded color on pi server
+    print(f"{len(CHRISTMAS_PALETTES.keys()) + 1}. Default colors loaded on pi server.")
+
+    scheme_choice = abs(int(input("Choose a scheme from the list above: ")))
+    scheme = CHRISTMAS_PALETTES[names[scheme_choice - 1]] if scheme_choice <= len(names) else []
+
+    # fill json data
+    json_data = {
+        "method" : "play_song",
+        "params" : {
+            "song" : song,
+            "pallete" : scheme,
+        }
+    }
+    return json.dumps(json_data)
+
+
+def get_songs():
+    """Constructs `get_songs` command"""
+    json_data = {
+        "method" : "get_songs",
+        "params" : {}
+    }
+    return json.dumps(json_data)
+
+
+def get_palettes():
+    """Constructs `get_palettes` command"""
+    json_data = {
+        "method" : "get_palettes",
+        "params" : {}
+    }
+    return json.dumps(json_data)
+
+
+def get_effects():
+    """Constructs `get_effects` command"""
+    json_data = {
+        "method" : "get_effects",
+        "params" : {}
+    }
+    return json.dumps(json_data)
+
+
 def construct_json(command) -> str:
+    """
+    Constructs a JSON-RPC request based on the provided command. This
+    will call an associated method that returns the associated JSON-RPC
+    request as a string.
+
+    :param command: command id lookup. Ultimately points to function to call
+    :return: JSON-RPC request string
+    """
     commands = {
         1: send_set_light_command,
         2: send_trigger_effect_command,
         3: send_set_pallete_command,
+        4: send_start_music_sync_command,
+        5: get_songs,
+        6: get_palettes,
+        7: get_effects,
     }
     return commands[command]()
 
 
 def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        global CHRISTMAS_PALETTES
+        global ANIMATION_OPTIONS
         s.connect((HOST, PORT))  # Connect to the server
         print(f"Connected to server at {HOST}:{PORT}")
+
+
+        s.sendall(get_palettes().encode('utf-8'))
+        data = s.recv(4096)
+        CHRISTMAS_PALETTES = json.loads(data.decode('utf-8'))["result"]
+
+        s.sendall(get_effects().encode('utf-8'))
+        data = s.recv(4096)
+        ANIMATION_OPTIONS = json.loads(data.decode('utf-8'))["result"]
 
         while True:
             command = pick_command()
@@ -144,8 +238,12 @@ def main():
             s.sendall(json_command.encode('utf-8'))
 
             # Receive the response from the server
-            data = s.recv(1024)
-            print(f"Received from server: {data.decode('utf-8')}")
+            data = s.recv(4096)
+            json_data = json.loads(data.decode('utf-8'))
+
+            # Print the JSON data in a nice, readable format
+            print(f"Received from server:\n{json.dumps(json_data, indent=4)}")
+
 
 
 if __name__ == "__main__":
