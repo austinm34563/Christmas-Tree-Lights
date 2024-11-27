@@ -1,52 +1,59 @@
 import logging
 
 class Logger:
-    _instance = None
+    # Static logger initialization
+    _logger = logging.getLogger("StaticLogger")
+    _logger.setLevel(logging.DEBUG)
+    _is_configured = False
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(Logger, cls).__new__(cls)
-            cls._instance._initialize_logger()
-        return cls._instance
+    @staticmethod
+    def _configure_logger():
+        if not Logger._is_configured:
+            # Create a file handler to write logs to a file
+            file_handler = logging.FileHandler("output/output.log")
+            file_handler.setLevel(logging.DEBUG)
 
-    def _initialize_logger(self):
-        # Set up the logger configuration
-        self.logger = logging.getLogger("SingletonLogger")
-        self.logger.setLevel(logging.DEBUG)
+            # Create a console handler for output to the terminal
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.DEBUG)
 
-        # Create a file handler to write logs to a file
-        file_handler = logging.FileHandler("output/output.log")
-        file_handler.setLevel(logging.DEBUG)
+            # Create a formatter and set it for both handlers
+            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            file_handler.setFormatter(formatter)
+            console_handler.setFormatter(formatter)
 
-        # Create a console handler for output to the terminal
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.DEBUG)
+            # Add the handlers to the logger
+            Logger._logger.addHandler(file_handler)
+            Logger._logger.addHandler(console_handler)
 
-        # Create a formatter and set it for both handlers
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        console_handler.setFormatter(formatter)
+            Logger._is_configured = True
 
-        # Add the handlers to the logger
-        self.logger.addHandler(file_handler)
-        self.logger.addHandler(console_handler)
-
-    def debug(self, tag, message):
+    @staticmethod
+    def debug(tag, message):
+        Logger._configure_logger()
         tagged_message = f"[{tag}] {message}"
-        self.logger.debug(tagged_message)
+        Logger._logger.debug(tagged_message)
 
-    def info(self, tag, message):
+    @staticmethod
+    def info(tag, message):
+        Logger._configure_logger()
         tagged_message = f"[{tag}] {message}"
-        self.logger.info(tagged_message)
+        Logger._logger.info(tagged_message)
 
-    def warning(self, tag, message):
+    @staticmethod
+    def warning(tag, message):
+        Logger._configure_logger()
         tagged_message = f"[{tag}] {message}"
-        self.logger.warning(tagged_message)
+        Logger._logger.warning(tagged_message)
 
-    def error(self, tag, message):
+    @staticmethod
+    def error(tag, message):
+        Logger._configure_logger()
         tagged_message = f"[{tag}] {message}"
-        self.logger.error(tagged_message)
+        Logger._logger.error(tagged_message)
 
-    def critical(self, tag, message):
+    @staticmethod
+    def critical(tag, message):
+        Logger._configure_logger()
         tagged_message = f"[{tag}] {message}"
-        self.logger.critical(tagged_message)
+        Logger._logger.critical(tagged_message)

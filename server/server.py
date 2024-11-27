@@ -12,7 +12,6 @@ client_count_lock = threading.Lock()
 current_clients = 0
 
 # logger info
-logger = Logger()
 TAG = "Server"
 
 # json rpc control
@@ -21,24 +20,24 @@ json_rpc = JsonRpc()
 def handle_client(conn, addr):
     global current_clients
     with conn:
-        logger.info(TAG, f"Connected by {addr}")
+        Logger.info(TAG, f"Connected by {addr}")
         with client_count_lock:
             current_clients += 1
-            logger.info(TAG, f"Current number of clients: {current_clients}")
+            Logger.info(TAG, f"Current number of clients: {current_clients}")
 
         while True:
             data = conn.recv(1024)
             if not data:
                 break
             command = data.decode('utf-8').strip()
-            logger.info(TAG, f"Received command: {command}")
+            Logger.info(TAG, f"Received command: {command}")
             response = json_rpc.process_json(command)
-            logger.debug(TAG, f"Sending response: {response}")
+            Logger.debug(TAG, f"Sending response: {response}")
             conn.sendall(response.encode('utf-8'))
 
     with client_count_lock:
         current_clients -= 1  # Decrement the number of current clients
-        print(f"Client {addr} disconnected. Current number of clients: {current_clients}")
+        Logger.info(TAG, f"Client {addr} disconnected. Current number of clients: {current_clients}")
 
 def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

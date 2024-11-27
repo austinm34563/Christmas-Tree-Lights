@@ -8,8 +8,6 @@ from animation_constants import CANDLE_COLORS
 import math
 import board
 
-logger = Logger()
-
 class Animation:
     def __init__(self, pixel_count, pixels, delay=0.01, speed=1):
         """
@@ -27,9 +25,9 @@ class Animation:
         self._stop_event = threading.Event()  # Event to signal the animation thread to stop
         self._thread = None
         self.TAG = "Animation"
-        logger.info(self.TAG, "Initialize Animation")
+        Logger.info(self.TAG, "Initialize Animation")
         if speed != 1:
-            logger.info(self.TAG, f"Speed is {speed}. Delay {'increased' if speed > 1 else 'decreased'} from {delay} to {self.delay}")
+            Logger.info(self.TAG, f"Speed is {speed}. Delay {'increased' if speed > 1 else 'decreased'} from {delay} to {self.delay}")
 
     def __del__(self):
         """ Desturctor of Animation object. """
@@ -53,7 +51,7 @@ class Animation:
             processing_time = (end_time - start_time) * 1000  # Processing time in milliseconds
 
             if processing_time > self.delay * 1000:
-                logger.warning(self.TAG, "Animation time budget exceeded")
+                Logger.warning(self.TAG, "Animation time budget exceeded")
 
             self.last_update_time = current_time
 
@@ -62,7 +60,7 @@ class Animation:
 
     def run_animation(self):
         """ Runs animation loaded from constructor. """
-        logger.info(self.TAG, "Animation started")
+        Logger.info(self.TAG, "Animation started")
         if self._thread is None or not self._thread.is_alive():
             self._stop_event.clear()
             self._thread = threading.Thread(target=self._animation_loop)
@@ -70,7 +68,7 @@ class Animation:
 
     def stop_animation(self):
         """ Stops the animation if running.  """
-        logger.info(self.TAG, "Animation stopped")
+        Logger.info(self.TAG, "Animation stopped")
         self._stop_event.set()  # Signal the thread to stop
         if self._thread is not None:
             self._thread.join()  # Wait for the thread to finish
@@ -102,7 +100,7 @@ class CycleFade(Animation):
         self.fade_direction = 1  # 1 for increasing, -1 for decreasing
         self.current_color_index = 0  # Track current color index
         self.TAG = "CycleFade"
-        logger.info(self.TAG, "Loading the CycleFade animation")
+        Logger.info(self.TAG, "Loading the CycleFade animation")
 
     def _update(self):
         # Update brightness
@@ -148,7 +146,7 @@ class Fade(Animation):
         self.fade_direction = 1  # 1 for increasing, -1 for decreasing
         self.adjusted_colors = [(0, 0, 0)] * pixel_count  # Pre-allocate adjusted colors
         self.TAG = "Fade"
-        logger.info(self.TAG, "Loading the Fade animation")
+        Logger.info(self.TAG, "Loading the Fade animation")
 
     def _update(self):
         """Perform a fade in and fade out animation, cycling through the pixel colors."""
@@ -194,7 +192,7 @@ class Blink(Animation):
         self.colors = colors
         self.current_color_index = 0
         self.TAG = "Blink"
-        logger.info(self.TAG, "Loading the Blink animation")
+        Logger.info(self.TAG, "Loading the Blink animation")
 
     def _update(self):
         current_color = self.colors[self.current_color_index]
@@ -221,7 +219,7 @@ class Chase(Animation):
         self.index = 0
         self.block_size = block_size
         self.TAG = "Chase"
-        logger.info(self.TAG, "Loading the Chase animation")
+        Logger.info(self.TAG, "Loading the Chase animation")
 
         # Initialize strip with background color
         self.pixels.fill(self.colors[1])
@@ -261,7 +259,7 @@ class TwinkleStars(Animation):
         self.twinkle_rate = twinkle_rate  # Chance that any pixel will twinkle on an update
         self.pixels.fill(self.base_color)  # Initialize all pixels to the base color
         self.TAG = "TwinkleStars"
-        logger.info(self.TAG, "Loading the TwinkleStars animation")
+        Logger.info(self.TAG, "Loading the TwinkleStars animation")
 
     def _update(self):
         for i in range(self.pixel_count):
@@ -296,7 +294,7 @@ class CandleFlicker(Animation):
         self.last_brightness = [1.0] * pixel_count  # Track last brightness for smooth transitions
 
         self.TAG = "CandleFlicker"
-        logger.info(self.TAG, "Loading the CandleFlicker animation")
+        Logger.info(self.TAG, "Loading the CandleFlicker animation")
 
     def smooth_flicker(self):
         for i in range(len(self.last_brightness)):
@@ -342,7 +340,7 @@ class Bouncing(Animation):
         self.indexOutterMoveRight = True
 
         self.TAG = "Bouncing"
-        logger.info(self.TAG, "Loading the Bouncing animation")
+        Logger.info(self.TAG, "Loading the Bouncing animation")
 
     def _update(self):
         self.pixels.fill(self.colors[1])

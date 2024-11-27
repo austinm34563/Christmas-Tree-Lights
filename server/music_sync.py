@@ -9,13 +9,12 @@ from os.path import join
 from logger import Logger
 from song_scraper import *
 
-logger = Logger()
 
 class MusicSync:
     def __init__(self, pixels, audio_file, color_palette, chunk_size=1024):
         self.tag = "MusicSync"
 
-        logger.info(self.tag, f"Loading {audio_file}")
+        Logger.info(self.tag, f"Loading {audio_file}")
 
         self.audio_file = join(SONG_DIRECTORY, audio_file)
         print(self.audio_file)
@@ -30,10 +29,15 @@ class MusicSync:
         self.sample_rate = self.audio.frame_rate
 
         self.audio_manager = pyaudio.PyAudio()
-        self.stream = self.audio_manager.open(format=self.audio_manager.get_format_from_width(self.audio.sample_width),
-                        channels=self.audio.channels,
-                        rate=self.sample_rate,
-                        output=True)
+
+        self.stream = None
+        try:
+            self.stream = self.audio_manager.open(format=self.audio_manager.get_format_from_width(self.audio.sample_width),
+                            channels=self.audio.channels,
+                            rate=self.sample_rate,
+                            output=True)
+        except OSError as e:
+            Logger.error(self.tag, f"Error initializing audio stream: {e}")
 
         # Calculate the time duration for each chunk
         self.chunk_duration = self.chunk_size / self.sample_rate
@@ -50,7 +54,7 @@ class MusicSync:
         self.total_duration = len(self.audio_data) / self.sample_rate  # Total playtime in seconds
 
         # log audio
-        logger.info(
+        Logger.info(
             self.tag,
             "Audio Information:\n"
             f" - Number of channels: {self.audio.channels}\n"
@@ -62,25 +66,30 @@ class MusicSync:
     def start_sync(self):
         """Start the music synchronization in a separate thread."""
         if self._thread and self._thread.is_alive():
-            logger.warning(self.tag, "MusicSync is already running.")
-            return
-        logger.info(self.tag, "Start sync requested")
+            Logger.warning(self.tag, "MusicSync is already running.")
+            return False
+
+        if self.stream is None:
+            Logger.error(self.tag, "Stream not set up properly.")
+            return False
+
+        Logger.info(self.tag, "Start sync requested")
         # Clear the stop event and start a new thread
         self._stop_event.clear()
-        self._thread = threading.Thread(target=self._run_sync)
+        self._thread = threading.Thread(target=self._run_sync, daemon=True)
         self._thread.start()
+        return True
 
     def stop_sync(self):
         """Stop the music synchronization and wait for the thread to finish."""
         if not self._thread or not self._thread.is_alive():
-            logger.info(self.tag, "MusicSync is not running.")
+            Logger.info(self.tag, "MusicSync is not running.")
             return
 
-        logger.info(self.tag, "Stopping music sync")
+        Logger.info(self.tag, "Stopping music sync")
         self._stop_event.set()
         self._thread.join()
-        self._teardown_audio()
-        logger.info(self.tag, "Music Stopped")
+        Logger.info(self.tag, "Music Stopped")
 
 
     def register_timing_callback(self, callback):
@@ -99,6 +108,7 @@ class MusicSync:
 
     def _teardown_audio(self):
         """Clean up PyAudio and stream objects."""
+        Logger.info(self.tag, "Tearing down audio")
         self.stream.stop_stream()
         self.stream.close()
         self.audio_manager.terminate()
@@ -134,7 +144,6 @@ class MusicSync:
         return tuple(
             int(c1 + (c2 - c1) * t) for c1, c2 in zip(color1, color2)
         )
-
 
     def _map_frequencies_to_leds(self, magnitudes):
         """Map frequency magnitudes to LED indices with balanced low, mid, and high frequency emphasis."""
@@ -174,7 +183,7 @@ class MusicSync:
         # Write audio data to the stream in chunks
         for i in range(0, len(self.audio_data), self.chunk_size):
             if self._stop_event.is_set():  # Graceful stopping
-                logger.info(self.tag, "Stopping audio thread.")
+                Logger.info(self.tag, "Stopping audio thread.")
                 break
             chunk = self.audio_data[i:i + self.chunk_size]
             self.stream.write(chunk.tobytes())
@@ -182,7 +191,7 @@ class MusicSync:
     def _run_sync(self):
         """Internal method to run the sync_with_music loop with enhanced smoothness."""
         time.sleep(2)
-        logger.info(self.tag, "Sync started")
+        Logger.info(self.tag, "Sync started")
         self._prepare_frames()
 
         # Start audio playback in a separate thread
@@ -222,11 +231,14 @@ class MusicSync:
             next_frame_time = start_time + (index + 1) * self.chunk_duration
             time.sleep(max(0, next_frame_time - time.time()))
 
-        logger.info(self.tag, "End of sync")
+        Logger.info(self.tag, "End of sync")
 
         # Ensure audio finishes
         self._stop_event.set()
         audio_thread.join()
+
+        # teardown audio
+        self._teardown_audio()
 
         # Smooth fade-out to black if not stopped prematurely
         self._fade_to_black(previous_colors, duration=1.0)
@@ -234,6 +246,7 @@ class MusicSync:
 
     def _fade_to_black(self, start_colors, duration=1.0):
         """Gradually fades the LEDs to black over a given duration."""
+        Logger.info(self.tag, "Fading to black")
         delay = 0.01 # smooth transition
         steps = int(duration // delay)
 
