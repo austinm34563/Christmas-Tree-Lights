@@ -24,14 +24,15 @@ def get_mp3_metadata():
     song_files = get_songs()
     metadata_dict = {}
 
-    for song in song_files:
+    for id, song in enumerate(song_files):
         audio_file = eyed3.load(join(SONG_DIRECTORY, song))
 
         # we only care about songs with metadata
         if audio_file.tag.title is None or audio_file.tag.artist is None or audio_file.tag.album is None:
             continue
 
-        metadata_dict[song] = {
+        metadata_dict[id] = {
+            "file": song,
             "title": audio_file.tag.title,
             "artist": audio_file.tag.artist,
             "album": audio_file.tag.album,
