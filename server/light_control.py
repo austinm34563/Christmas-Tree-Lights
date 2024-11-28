@@ -13,12 +13,12 @@ class LightControl:
     def __init__(self, led_size=LED_COUNT):
         self.leds = neopixel.NeoPixel(LED_PIN, led_size, pixel_order=neopixel.RGB, auto_write=False, brightness=1.0)
 
-    def setColor(self, color):
+    def set_color(self, color):
         Logger.info(TAG, f"Setting color to {str(hex(color)).upper()}")
         self.leds.fill(color)
         self.show()
 
-    def setColorPallete(self, colors):
+    def set_color_pallete(self, colors):
         Logger.info(TAG, f"Setting color palette with {len(colors)} colors for {LED_COUNT} LEDs.")
 
         # Log the color palette with indices
@@ -43,4 +43,4 @@ class LightControl:
 
 if __name__ == '__main__':
     lights = LightControl()
-    lights.setColor()
+    lights.set_color()

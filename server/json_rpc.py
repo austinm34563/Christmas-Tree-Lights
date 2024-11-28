@@ -156,7 +156,7 @@ class JsonRpc:
             self.music_sync.stop_sync()
             self.music_sync = None
 
-        self.light_controller.setColor(int(params.get(COLOR_TAG), 16))
+        self.light_controller.set_color(int(params.get(COLOR_TAG), 16))
         return self._construct_result(True)
 
     def _set_pallete(self, params):
@@ -177,7 +177,7 @@ class JsonRpc:
         color_pallete = params.get(PALLETE_TAG)
         color_pallete = self._validate_color_list(color_pallete, DEFAULT_COLOR_PALLETE)
 
-        self.light_controller.setColorPallete(color_pallete)
+        self.light_controller.set_color_pallete(color_pallete)
         return self._construct_result(True)
 
     def _trigger_effect(self, params):
