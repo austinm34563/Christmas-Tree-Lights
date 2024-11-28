@@ -7,6 +7,7 @@ PORT = 65432          # The port used by the server
 
 CHRISTMAS_PALETTES = {}
 ANIMATION_OPTIONS = {}
+SONG_OPTIONS = {}
 
 
 def pick_command():
@@ -20,9 +21,10 @@ def pick_command():
     print("2. Pick Effect")
     print("3. Pick Pallette")
     print("4. Start Music Sync")
-    print("5. Get songs")
-    print("6. Show Palettes")
-    print("7. Show Animation/Effects List")
+    print("5. Stop Music Sync")
+    print("6. Get songs")
+    print("7. Show Palettes")
+    print("8. Show Animation/Effects List")
     return input("Enter command to send to server (or 'exit' to quit): ")
 
 
@@ -137,7 +139,13 @@ def send_start_music_sync_command():
     """
     # present animation IDs
     print()
-    song = input("Enter a song mp3: ")
+    for index, id in enumerate(SONG_OPTIONS.keys()):
+        title = SONG_OPTIONS[id]["title"]
+        artist = SONG_OPTIONS[id]["artist"]
+        print(f"{index + 1}. {title} by {artist}")
+    song_ids = list(SONG_OPTIONS.keys())
+    choice = int(input("Choose a song from list above: "))
+    song = int(song_ids[choice])
 
     # specify color scheme/palette options
     print("\nPick the following Color Scheme:")
@@ -155,9 +163,19 @@ def send_start_music_sync_command():
     json_data = {
         "method" : "play_song",
         "params" : {
-            "song" : song,
+            "song_id" : song,
             "pallete" : scheme,
         }
+    }
+    return json.dumps(json_data)
+
+def send_stop_music_sync_command():
+    """Constructs `stop_songs` command"""
+
+    # fill json data
+    json_data = {
+        "method" : "stop_song",
+        "params" : {}
     }
     return json.dumps(json_data)
 
@@ -203,9 +221,10 @@ def construct_json(command) -> str:
         2: send_trigger_effect_command,
         3: send_set_pallete_command,
         4: send_start_music_sync_command,
-        5: get_songs,
-        6: get_palettes,
-        7: get_effects,
+        5: send_stop_music_sync_command,
+        6: get_songs,
+        7: get_palettes,
+        8: get_effects,
     }
     return commands[command]()
 
@@ -214,6 +233,7 @@ def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         global CHRISTMAS_PALETTES
         global ANIMATION_OPTIONS
+        global SONG_OPTIONS
         s.connect((HOST, PORT))  # Connect to the server
         print(f"Connected to server at {HOST}:{PORT}")
 
@@ -225,6 +245,10 @@ def main():
         s.sendall(get_effects().encode('utf-8'))
         data = s.recv(4096)
         ANIMATION_OPTIONS = json.loads(data.decode('utf-8'))["result"]
+
+        s.sendall(get_songs().encode('utf-8'))
+        data = s.recv(4096)
+        SONG_OPTIONS = json.loads(data.decode('utf-8'))["result"]
 
         while True:
             command = pick_command()
