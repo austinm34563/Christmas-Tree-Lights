@@ -23,13 +23,15 @@ PALLETE_TAG = "pallete"
 SPEED_TAG = "speed"
 COLOR_SCHEME_TAG = "color_scheme"
 ANIMATION_EFFECT_ID_TAG = "animation_id"
-SONG_FILE_TAG = "song"
+SONG_ID_TAG = "song_id"
+SONG_FILE_TAG = "file"
 
 # error codes
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
+MUSIC_NOT_PLAYING_ERROR = -32000
 
 # error messages
 ERRROR_MESSAGES = {
@@ -37,6 +39,7 @@ ERRROR_MESSAGES = {
     INVALID_REQUEST : "Invalid Request",
     METHOD_NOT_FOUND : "Method not found",
     INVALID_PARAMS : "Invalid params",
+    MUSIC_NOT_PLAYING_ERROR : "No music is currently playing"
 }
 
 VALID_TAGS = [METHOD_TAG, PARAMS_TAG]
@@ -68,7 +71,7 @@ class JsonRpc:
             "set_pallete" : self._set_pallete,
             "trigger_effect" : self._trigger_effect,
             "play_song" : self._play_song,
-            # "stop_song" : self._stop_song,
+            "stop_song" : self._stop_song,
             "get_palettes" : self._get_palletes,
             "get_songs" : self._get_songs,
             "get_effects" : self._get_effects,
@@ -81,7 +84,7 @@ class JsonRpc:
         try:
             json_obj = loads(json_str)
         except:
-            Logger.error(TAG, "Error: Could not read json")
+            Logger.error(TAG, "Could not read json")
             return self._construct_error(PARSE_ERROR)
 
         if not self._validate_json(json_obj):
@@ -91,12 +94,12 @@ class JsonRpc:
 
     def _validate_json(self, json_obj):
         if not isinstance(json_obj, dict):
-            Logger.error(TAG, "Error: Invalid JSON dictionary.")
+            Logger.error(TAG, "Invalid JSON dictionary.")
             return False
 
         for tag in VALID_TAGS:
             if json_obj.get(tag) is None:
-                Logger.error(TAG, "Error: Invalid JSON. Missing the following tag: ", tag)
+                Logger.error(TAG, "Invalid JSON. Missing the following tag: ", tag)
                 return False
 
         return True
@@ -121,7 +124,7 @@ class JsonRpc:
 
     def _call_command(self, command, params):
         if self.mCommands.get(command) is None:
-            Logger.error(TAG, "Error: JSON-RPC command not found")
+            Logger.error(TAG, "JSON-RPC command not found")
             return self._construct_error(METHOD_NOT_FOUND)
 
         return self.mCommands[command](params)
@@ -141,7 +144,7 @@ class JsonRpc:
     def _set_light(self, params):
         Logger.info(TAG, "Calling set light")
         if params.get(COLOR_TAG) is None:
-            Logger.error(TAG, "Error: invalid color")
+            Logger.error(TAG, "invalid color")
             return self._construct_error(INVALID_PARAMS)
 
         # stop any animations that are playing
@@ -159,7 +162,7 @@ class JsonRpc:
     def _set_pallete(self, params):
         Logger.info(TAG, "Calling set pallete")
         if params.get(PALLETE_TAG) is None:
-            Logger.error(TAG, "Error: invalid pallete")
+            Logger.error(TAG, "invalid pallete")
             return self._construct_error(INVALID_PARAMS)
 
         # stop any animation that are playing
@@ -182,11 +185,11 @@ class JsonRpc:
         effect_id = params.get(ANIMATION_EFFECT_ID_TAG)
 
         if effect_id is None:
-            Logger.error(TAG, "Error: animation effect id not found")
+            Logger.error(TAG, "animation effect id not found")
             return self._construct_error(INVALID_PARAMS)
 
         if effect_id not in AnimationId._value2member_map_:
-            Logger.error(TAG, f"Error: animation effect invalid: {effect_id}")
+            Logger.error(TAG, f"animation effect invalid: {effect_id}")
             return self._construct_error(INVALID_PARAMS)
 
         pixels = self.light_controller.get_pixels()
@@ -213,20 +216,20 @@ class JsonRpc:
         if effect_id in effect_classes:
             self.animation_controller = effect_classes[effect_id](pixel_count, pixels, color_scheme, speed=speed)
         else:
-            Logger.error(TAG, "Error: No associated animation")
+            Logger.error(TAG, "No associated animation")
             return self._construct_error(INVALID_PARAMS)
 
         if self.animation_controller is None:
-            Logger.error(TAG, "Error: Could not run animation")
+            Logger.error(TAG, "Could not run animation")
             return self._construct_error(INVALID_PARAMS)
 
         self.animation_controller.run_animation()
         return self._construct_result(True)
 
     def _play_song(self, params):
-        song = params.get(SONG_FILE_TAG)
-        if song is None:
-            Logger.error(TAG, "Error: Song not provided")
+        song_id = params.get(SONG_ID_TAG)
+        if song_id is None:
+            Logger.error(TAG, "Song not provided")
             return self._construct_error(INVALID_PARAMS)
 
         color_pallete = self._validate_color_list(params.get(PALLETE_TAG), DEFAULT_COLOR_PALLETE)
@@ -241,11 +244,17 @@ class JsonRpc:
             self.music_sync.stop_sync()
 
         pixels = self.light_controller.get_pixels()
-        self.music_sync = MusicSync(pixels, song, color_pallete)
+        self.music_sync = MusicSync(pixels, get_mp3_metadata()[song_id][SONG_FILE_TAG], color_pallete)
         result = self.music_sync.start_sync()
         return self._construct_result(result)
 
-    # def _stop_song(self, params):
+    def _stop_song(self, params):
+        if self.music_sync is None:
+            return self._construct_error(MUSIC_NOT_PLAYING_ERROR)
+
+        self.music_sync.stop_sync()
+        self.music_sync = None
+        return self._construct_result(True)
 
     def _get_songs(self, params):
         return self._construct_result(get_mp3_metadata())
