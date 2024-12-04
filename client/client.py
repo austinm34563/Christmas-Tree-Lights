@@ -145,7 +145,7 @@ def send_start_music_sync_command():
         print(f"{index + 1}. {title} by {artist}")
     song_ids = list(SONG_OPTIONS.keys())
     choice = int(input("Choose a song from list above: "))
-    song = int(song_ids[choice])
+    song = int(song_ids[choice - 1])
 
     # specify color scheme/palette options
     print("\nPick the following Color Scheme:")
