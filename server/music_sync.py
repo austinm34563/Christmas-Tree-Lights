@@ -13,15 +13,30 @@ from song_scraper import *
 class MusicSync:
     def __init__(self, pixels, audio_file, color_palette, chunk_size=1024):
         self.tag = "MusicSync"
-
-        Logger.info(self.tag, f"Loading {audio_file}")
-
         self.audio_file = join(SONG_DIRECTORY, audio_file)
-        print(self.audio_file)
-        self.num_pixels = len(pixels)
-        self.chunk_size = chunk_size
+        self.color_palette = color_palette
         self.pixels = pixels
-        self.color_palette = color_palette  # List of RGB color tuples
+        self.chunk_size = chunk_size
+        self.num_pixels = len(pixels)
+        self.audio = None
+        self.audio_data = None
+        self.sample_rate = None
+        self.audio_manager = None
+        self.stream = None
+        self.chunk_duration = None
+
+        self.frames = []
+
+        # Thread management
+        self._thread = None
+        self._stop_event = threading.Event()
+
+        # callback info
+        self.timing_callback = None  # Placeholder for the timing callback
+        self.total_duration = None  # Total playtime in seconds
+
+    def load(self):
+        Logger.info(self.tag, f"Loading {self.audio_file}")
 
         # Load stereo audio without converting to mono
         self.audio = AudioSegment.from_file(self.audio_file)
@@ -30,7 +45,6 @@ class MusicSync:
 
         self.audio_manager = pyaudio.PyAudio()
 
-        self.stream = None
         try:
             self.stream = self.audio_manager.open(format=self.audio_manager.get_format_from_width(self.audio.sample_width),
                             channels=self.audio.channels,
@@ -41,16 +55,6 @@ class MusicSync:
 
         # Calculate the time duration for each chunk
         self.chunk_duration = self.chunk_size / self.sample_rate
-
-        # Store frames for pre-processed LED updates
-        self.frames = []
-
-        # Thread management
-        self._thread = None
-        self._stop_event = threading.Event()
-
-        # callback info
-        self.timing_callback = None  # Placeholder for the timing callback
         self.total_duration = len(self.audio_data) / self.sample_rate  # Total playtime in seconds
 
         # log audio
@@ -69,10 +73,6 @@ class MusicSync:
             Logger.warning(self.tag, "MusicSync is already running.")
             return False
 
-        if self.stream is None:
-            Logger.error(self.tag, "Stream not set up properly.")
-            return False
-
         Logger.info(self.tag, "Start sync requested")
         # Clear the stop event and start a new thread
         self._stop_event.clear()
@@ -88,7 +88,6 @@ class MusicSync:
 
         Logger.info(self.tag, "Stopping music sync")
         self._stop_event.set()
-        self._thread.join()
         Logger.info(self.tag, "Music Stopped")
 
 
@@ -148,6 +147,12 @@ class MusicSync:
     def _map_frequencies_to_leds(self, magnitudes):
         """Map frequency magnitudes to LED indices with balanced low, mid, and high frequency emphasis."""
         max_magnitude = np.max(magnitudes) if np.max(magnitudes) > 0 else 1
+        min_magnitude = np.min(magnitudes) if np.min(magnitudes) < max_magnitude else 0
+
+        # Prevent divide-by-zero in normalization
+        range_magnitude = max_magnitude - min_magnitude
+        range_magnitude = range_magnitude if range_magnitude > 0 else 1
+
         led_colors = []
 
         # Calculate the frequency range per LED
@@ -160,13 +165,13 @@ class MusicSync:
             band_magnitude = np.mean(magnitudes[band_start:band_end])
 
             # Normalize the magnitude to a brightness value
-            brightness = int(min(band_magnitude * 255 / max_magnitude, 255))
+            normalized_magnitude = (band_magnitude - min_magnitude) / range_magnitude
 
             # Cycle through the color palette
             color = self.color_palette[i % len(self.color_palette)]
 
             # Scale color by brightness
-            led_color = tuple(int(brightness * c / 255) for c in color)
+            led_color = tuple(int(normalized_magnitude * c) for c in color)
             led_colors.append(led_color)
 
         return led_colors
@@ -190,6 +195,7 @@ class MusicSync:
 
     def _run_sync(self):
         """Internal method to run the sync_with_music loop with enhanced smoothness."""
+        self.load()
         time.sleep(2)
         Logger.info(self.tag, "Sync started")
         self._prepare_frames()
@@ -282,7 +288,7 @@ if __name__ == "__main__":
 
     led_music_sync = MusicSync(pixels, available_songs[song_choice - 1], CHRISTMAS_TREE_PALLETE)
     led_music_sync.register_timing_callback(timing_callback)
-    led_music_sync.start_sync()
+    led_music_sync._run_sync()
 
     # time.sleep(10)
     # led_music_sync.stop_sync()
