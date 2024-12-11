@@ -2,11 +2,12 @@
 import neopixel
 import board
 from logger import Logger
+import time
 
 TAG = "LightControl"
 
 # LED strip configuration:
-LED_COUNT  = 200         # Number of LED pixels.
+LED_COUNT  = 400         # Number of LED pixels.
 LED_PIN    = board.D18   # GPIO pin connected to the pixels (18 uses PWM!).
 
 class LightControl:
@@ -42,5 +43,11 @@ class LightControl:
         return self.leds.n
 
 if __name__ == '__main__':
-    lights = LightControl()
-    lights.set_color()
+    lights_400 = LightControl(400)
+    lights_400.set_color(0)
+    lights_400.show()
+
+    lights = LightControl(400)
+    lights.set_color(0xFFFFFF)
+    lights.show()
+

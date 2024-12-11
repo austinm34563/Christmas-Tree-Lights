@@ -206,10 +206,16 @@ class MusicSync:
 
         start_time = time.time()
         previous_colors = [(0, 0, 0)] * self.num_pixels  # Start with all LEDs off
+        budget_exceeded = False
 
         for index, magnitudes in enumerate(self.frames):
             if self._stop_event.is_set():
                 break
+
+            # if budget exceeds, skip the frame
+            if budget_exceeded:
+                budget_exceeded = False
+                continue
 
             # Calculate current playtime
             current_playtime = index * self.chunk_duration
@@ -222,10 +228,12 @@ class MusicSync:
             led_colors = self._map_frequencies_to_leds(magnitudes)
 
             # Interpolate between current and previous LED colors for smooth transitions
-            interpolated_colors = [
-                self._interpolate_color(previous_colors[i], led_colors[i], t=0.5)
-                for i in range(self.num_pixels)
-            ]
+            t = 0.7
+            interpolated_colors = np.clip(
+                np.array(previous_colors) + (np.array(led_colors) - np.array(previous_colors)) * t,
+                0, 255
+            ).astype(int).tolist()
+
 
             # Update LEDs with the interpolated colors
             self._display_colors(interpolated_colors)
@@ -235,7 +243,12 @@ class MusicSync:
 
             # Calculate exact sleep time for the next frame
             next_frame_time = start_time + (index + 1) * self.chunk_duration
-            time.sleep(max(0, next_frame_time - time.time()))
+            ds = next_frame_time - time.time()
+            if ds <= 0:
+                Logger.warning(self.tag, f"Went over budget by {-ds}")
+                budget_exceeded = True
+                ds = 0
+            time.sleep(ds)
 
         Logger.info(self.tag, "End of sync")
 
@@ -270,7 +283,7 @@ class MusicSync:
 
 # Example usage
 if __name__ == "__main__":
-    LED_COUNT = 200
+    LED_COUNT = 400
     LED_PIN = board.D18
     pixels = neopixel.NeoPixel(LED_PIN, LED_COUNT, pixel_order=neopixel.RGB, auto_write=False, brightness=1.0)
 
