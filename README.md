@@ -18,6 +18,13 @@ There are two main components of the software:
     - example client used to demo lighting protocol
     - client establishes a connection over TCP
 
+## Hardware
+### Microcontroller
+- Rasberry Pi 4
+
+### Light Strips
+- Neopixel (WS2811)
+
 ## JSON-RPC APIs
 
 ### Requests
@@ -97,7 +104,6 @@ Example:
 {"method": "set_pallete", "params": {"pallete": [1997856, 11927552, 14331, 14640384, 8454363]}}
 ```
 
-
 ### Get Color Palette
 The light server holds a variety of color palettes. The client can
 request the list of palettes.
@@ -109,5 +115,33 @@ Send:
 
 Potential Response:
 ```shell
-{"result": {"Christmas Tree Palette": [1997856, 11927552, 14331, 14640384, 8454363], "Christmas Snow": [14353412, 1482568, 9229567, 13037567, 16777215], "Generic Christmas": [16711680, 16742520, 16777215, 7657088, 3640105], "Christmas Palette Traditional": [1997856, 11927552, 16777215, 14640384, 65280], "Christmas Palette Winter": [10995687, 16777215, 11119017, 4103837, 16711680], "Christmas Palette Cozy": [9127187, 16766720, 10824234, 25600, 16777215], "Christmas Palette Classic": [25600, 11927552, 16766720, 16777215, 17663], "Christmas Palette Elegant": [6970061, 16777215, 16766720, 16711935, 11674146, 2263842], "Christmas Palette Elegant II": [6970061, 16777215, 16711935, 11674146, 2263842], "Candle Colors": [16737300, 16732160, 13127680, 13114880, 16714240]}}
+{
+    "result": {
+        "Christmas Tree Palette": [1997856, 11927552, 14331, 14640384, 8454363],
+        "Christmas Snow": [14353412, 1482568, 9229567, 13037567, 16777215],
+        "Generic Christmas": [16711680, 16742520, 16777215, 7657088, 3640105],
+        "Christmas Palette Traditional": [1997856, 11927552, 16777215, 14640384, 65280],
+        "Christmas Palette Winter": [10995687, 16777215, 11119017, 4103837, 16711680],
+        "Christmas Palette Cozy": [9127187, 16766720, 10824234, 25600, 16777215],
+        "Christmas Palette Classic": [25600, 11927552, 16766720, 16777215, 17663],
+        "Christmas Palette Elegant": [6970061, 16777215, 16766720, 16711935, 11674146, 2263842],
+        "Christmas Palette Elegant II": [6970061, 16777215, 16711935, 11674146, 2263842],
+        "Candle Colors": [16737300, 16732160, 13127680, 13114880, 16714240]
+    }
+ }
 ```
+
+### Set Effect
+TBD
+
+### Get Effect List
+TBD
+
+### Start Music Sync
+TBD
+
+### Stop Music Sync
+TBD
+
+### Get List of Songs
+TBD
