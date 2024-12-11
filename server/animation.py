@@ -254,10 +254,11 @@ class TwinkleStars(Animation):
         :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
         """
         super().__init__(pixel_count, pixels, delay, speed)
-        self.base_color = colors[0]  # The base color when not twinkling
-        self.twinkle_color = colors[1]  # The brighter twinkle color
+        self.colors = [(color[0] / 2, color[1] / 2, color[2] / 2) for color in colors]  # The base color when not twinkling
+        self.twinkle_color = 0xfff220  # The brighter twinkle color
         self.twinkle_rate = twinkle_rate  # Chance that any pixel will twinkle on an update
-        self.pixels.fill(self.base_color)  # Initialize all pixels to the base color
+        for i in range(self.pixel_count):
+            self.pixels[i] = self.colors[i % len(self.colors)]
         self.TAG = "TwinkleStars"
         Logger.info(self.TAG, "Loading the TwinkleStars animation")
 
@@ -268,7 +269,7 @@ class TwinkleStars(Animation):
                 self.pixels[i] = self.twinkle_color
             else:
                 # Restore pixel to base color
-                self.pixels[i] = self.base_color
+                self.pixels[i] = self.colors[i % len(self.colors)]
 
 
 class CandleFlicker(Animation):

@@ -36,6 +36,13 @@ CHRISTMAS_PALETTE_TRADITIONAL = [
     0x00FF00   # Bright Green (Accents)
 ]
 
+# Traditional Christmas Colors
+RED_GREEN_WHITE = [
+    0x006400,  # Green (Tree color)
+    0xB60000,  # Red (Decoration)
+    0xFFFFFF,  # White (Snow/Light)
+]
+
 # Winter Wonderland
 CHRISTMAS_PALETTE_WINTER = [
     0xA7C7E7,  # Light Blue (Frost)
@@ -91,6 +98,17 @@ CANDLE_COLORS = [
     0xFF0A00,  # Redish orange
 ]
 
+# Blue and White
+BLUE_WHITE = [
+    0x0000FF,
+    0xFFFFFF,
+]
+
+# Blue
+BLUE = [
+    0x0000FF,
+]
+
 COLOR_PALETTES = {
     "Christmas Tree Palette": CHRISTMAS_TREE_PALLETE,
     "Christmas Snow": CHRISTMAS_SNOW,
@@ -102,4 +120,7 @@ COLOR_PALETTES = {
     "Christmas Palette Elegant": CHRISTMAS_PALETTE_ELEGANT,
     "Christmas Palette Elegant II": CHRISTMAS_PALETTE_ELEGANT_II,
     "Candle Colors": CANDLE_COLORS,
+    "Red Green White Colors": RED_GREEN_WHITE,
+    "Blue and White": BLUE_WHITE,
+    "Blue": BLUE
 }
