@@ -239,15 +239,15 @@ def main():
 
 
         s.sendall(get_palettes().encode('utf-8'))
-        data = s.recv(4096)
+        data = s.recv(8192)
         CHRISTMAS_PALETTES = json.loads(data.decode('utf-8'))["result"]
 
         s.sendall(get_effects().encode('utf-8'))
-        data = s.recv(4096)
+        data = s.recv(8192)
         ANIMATION_OPTIONS = json.loads(data.decode('utf-8'))["result"]
 
         s.sendall(get_songs().encode('utf-8'))
-        data = s.recv(4096)
+        data = s.recv(8192)
         SONG_OPTIONS = json.loads(data.decode('utf-8'))["result"]
 
         while True:
