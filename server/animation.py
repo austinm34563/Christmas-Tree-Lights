@@ -542,7 +542,7 @@ class Cover(Animation):
             self.current_color_index %= len(self.colors)
 
 class Cylon(Animation):
-    def __init__(self, pixel_count, pixels, colors, delay=0.03, fade_amount=1.5, speed=1):
+    def __init__(self, pixel_count, pixels, colors, delay=0.03, fade_amount=0.75, speed=1):
         """
         Constructor for Cylon class (Larson Scanner effect).
 
@@ -565,26 +565,20 @@ class Cylon(Animation):
         # Set the current LED to the color from the palette
         self.pixels[self.position] = self.colors[self.color_index]
 
-        # Fade all LEDs
         for i in range(self.pixel_count):
             self.pixels[i] = self.fade(self.pixels[i], self.fade_amount)
 
-        # Move the position back and forth
-        if self.reverse:
-            self.position -= 1
-            if self.position < 0:
-                self.position = 1
-                self.reverse = False
-        else:
-            self.position += 1
-            if self.position >= self.pixel_count:
-                self.position = self.pixel_count - 2
-                self.reverse = True
+        # Move the position back and forth (optimized logic)
+        self.position += 1 if not self.reverse else -1
+        if self.position < 0:  # Reverse when reaching the leftmost position
+            self.position = 1
+            self.reverse = False
+        elif self.position >= self.pixel_count:  # Reverse when reaching the rightmost position
+            self.position = self.pixel_count - 2
+            self.reverse = True
 
-        # Cycle through colors in the palette
-        self.color_index += 1
-        if self.color_index >= len(self.colors):
-            self.color_index = 0
+        # Cycle through colors in the palette (optimized using modulo)
+        self.color_index = (self.color_index + 1) % len(self.colors)
 
     def fade(self, color, fade_amount):
         """
@@ -604,6 +598,12 @@ if __name__ == "__main__":
     LED_COUNT  = 400         # Number of LED pixels.
     LED_PIN    = board.D18   # GPIO pin connected to the pixels (18 uses PWM!).
     pixels = neopixel.NeoPixel(LED_PIN, LED_COUNT, pixel_order=neopixel.RGB, auto_write=False, brightness=1.0)
-    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-    animation = Cylon(pixels.n, pixels, colors, speed=2)
+    CHRISTMAS_TREE_PALLETE = [
+        0x1E7C20,
+        0xB60000,
+        0x0037FB,
+        0xDF6500,
+        0x8100DB
+    ]
+    animation = Cylon(pixels.n, pixels, CHRISTMAS_TREE_PALLETE, speed=5)
     animation.run_animation()
