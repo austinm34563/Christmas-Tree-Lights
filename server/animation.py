@@ -13,29 +13,39 @@ class Animation:
         """
         Constructor for Animation class.
 
-        :param pixel_count: Number of pixels on leds
+        :param pixel_count: Number of pixels on LEDs
         :param pixels: Pixel RGB data
         :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
         :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
         """
         self.pixel_count = pixel_count
-        self.pixels = pixels  # Now accept a pre-initialized NeoPixel object
+        self.pixels = pixels  # Pre-initialized NeoPixel object
         self.delay = delay / speed
         self.last_update_time = time.monotonic()
+        self.last_show_time = time.monotonic()
+        self.show_interval = 1 / 60  # 60 FPS, ~16.67ms per frame
         self._stop_event = threading.Event()  # Event to signal the animation thread to stop
         self._thread = None
         self.TAG = "Animation"
         Logger.info(self.TAG, "Initialize Animation")
         if speed != 1:
-            Logger.info(self.TAG, f"Speed is {speed}. Delay {'increased' if speed > 1 else 'decreased'} from {delay} to {self.delay}")
+            Logger.info(
+                self.TAG,
+                f"Speed is {speed}. Delay {'increased' if speed > 1 else 'decreased'} from {delay} to {self.delay}",
+            )
 
     def __del__(self):
-        """ Desturctor of Animation object. """
+        """ Destructor of Animation object. """
         self.stop_animation()
 
     def _show(self):
-        """ Helper method for stopping animation. """
-        self.pixels.show()  # Call the NeoPixel show method
+        """ Throttled method to update LED state at 60 FPS. """
+        current_time = time.monotonic()
+        elapsed_time = current_time - self.last_show_time
+
+        if elapsed_time >= self.show_interval:
+            self.pixels.show()  # Call the NeoPixel show method
+            self.last_show_time = current_time
 
     def _update_with_timing(self):
         """ Update call with timing tracked. """
@@ -67,7 +77,7 @@ class Animation:
             self._thread.start()
 
     def stop_animation(self):
-        """ Stops the animation if running.  """
+        """ Stops the animation if running. """
         Logger.info(self.TAG, "Animation stopped")
         self._stop_event.set()  # Signal the thread to stop
         if self._thread is not None:
@@ -78,9 +88,7 @@ class Animation:
         """ Animation loop used for thread. """
         while not self._stop_event.is_set():
             self._update_with_timing()
-            self._show()
-            time.sleep(self.delay)  # Ensure the thread sleeps to avoid overloading the CPU
-
+            self._show()  # Ensure _show is throttled to 60 FPS
 
 class CycleFade(Animation):
     def __init__(self, pixel_count, pixels, colors, steps=255, delay=0.01, speed=1):
@@ -227,7 +235,6 @@ class Chase(Animation):
         # Set initial block to chase color
         for i in range(self.block_size):
             self.pixels[i % self.pixel_count] = self.colors[0]
-        self._show()
 
     def _update(self):
         # Clear the first pixel of the previous block
@@ -321,7 +328,7 @@ class CandleFlicker(Animation):
         self.pixels[:] = current_colors
 
 class Bouncing(Animation):
-    def __init__(self, pixel_count, pixels, colors, delay=0.01, speed=1, block_size=5):
+    def __init__(self, pixel_count, pixels, colors, delay=0.01, speed=1, block_size=25):
         """
         Constructor for Bouncing class.
 
@@ -356,14 +363,21 @@ class Bouncing(Animation):
         self.pixels[inner_start:inner_end + 1] = [self.colors[0]] * (inner_end - inner_start + 1)
         self.pixels[outer_start:outer_end + 1] = [self.colors[0]] * (outer_end - outer_start + 1)
 
-        # Calculate distance and movement speeds
-        distance = self.indexOutter - (self.indexInner + self.block_size)
-        speed_factor = max(1, abs(distance) // 2)
-        move_amount = 1.0 / speed_factor if distance > 0 else speed_factor
+        # Calculate distance remaining for realistic speed adjustment
+        distance_inner = abs(self.indexInner - (self.pixel_count // 2 - self.block_size))
+        distance_outer = abs(self.indexOutter - (self.pixel_count // 2))
+
+        # Smooth speed based on distance remaining (acceleration/deceleration effect)
+        speed_factor_inner = 1.0 / (1 + distance_inner / (self.pixel_count / 2))
+        speed_factor_outer = 1.0 / (1 + distance_outer / (self.pixel_count / 2))
+
+        # Set move_amount based on speed factors
+        move_amount_inner = 1.0 * speed_factor_inner
+        move_amount_outer = 1.0 * speed_factor_outer
 
         # Update indices for bouncing
-        self.indexInner += move_amount if self.indexInnerMoveRight else -move_amount
-        self.indexOutter += move_amount if self.indexOutterMoveRight else -move_amount
+        self.indexInner += move_amount_inner if self.indexInnerMoveRight else -move_amount_inner
+        self.indexOutter += move_amount_outer if self.indexOutterMoveRight else -move_amount_outer
 
         # Boundary conditions for inner block
         if self.indexInner <= 0:
@@ -527,3 +541,128 @@ class Cover(Animation):
             self.current_color_index += 1
             self.current_color_index %= len(self.colors)
 
+class Cylon(Animation):
+    def __init__(self, pixel_count, pixels, colors, delay=0.03, fade_amount=1.0, speed=1):
+        """
+        Constructor for Cylon class (Larson Scanner effect).
+
+        :param pixel_count: Number of pixels on leds
+        :param pixels: Pixel RGB data
+        :param colors: Color palette for animation
+        :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
+        :param fade_amount: Amount of fade for LEDs (0-255)
+        :param speed: Speed rate relative to delay. (2.0 = double speed, 0.5 = half speed)
+        """
+        super().__init__(pixel_count, pixels, delay, speed)
+        self.fade_amount = fade_amount
+        self.position = 0
+        self.reverse = False
+        self.color_index = 0  # To track the current color in the palette
+        self.colors = colors  # Store the color palette
+        self.TAG = "Cylon"
+
+    def _update(self):
+        # Set the current LED to the color from the palette
+        self.pixels[self.position] = self.colors[self.color_index]
+
+        for i in range(self.pixel_count):
+            self.pixels[i] = self.fade(self.pixels[i], self.fade_amount)
+
+        # Move the position back and forth (optimized logic)
+        self.position += 1 if not self.reverse else -1
+        if self.position < 0:  # Reverse when reaching the leftmost position
+            self.position = 1
+            self.reverse = False
+        elif self.position >= self.pixel_count:  # Reverse when reaching the rightmost position
+            self.position = self.pixel_count - 2
+            self.reverse = True
+
+        # Cycle through colors in the palette (optimized using modulo)
+        self.color_index = (self.color_index + 1) % len(self.colors)
+
+    def fade(self, color, fade_amount):
+        """
+        Fades an RGB color by applying a fade amount.
+
+        :param color: A tuple representing the RGB color (r, g, b)
+        :param fade_amount: The fade amount (0-255)
+        :return: The faded color (r, g, b)
+        """
+        r, g, b = color
+        r = max(0, r - fade_amount)
+        g = max(0, g - fade_amount)
+        b = max(0, b - fade_amount)
+        return (r, g, b)
+
+class RainbowWave(Animation):
+    def __init__(self, pixel_count, pixels, colors=None, delay=0.03, speed=1.0, wavelength=20, phase_shift=0.1):
+        """
+        Constructor for RainbowWave class.
+
+        :param pixel_count: Number of pixels on LEDs
+        :param pixels: Pixel RGB data
+        :param colors: Not used in this animation, but kept for compatibility
+        :param delay: Delay set between update calls
+        :param speed: Speed of the wave movement
+        :param wavelength: Number of pixels per cycle of the wave
+        :param phase_shift: Amount the wave shifts each update
+        """
+        super().__init__(pixel_count, pixels, delay, speed)
+        self.speed = speed
+        self.wavelength = wavelength
+        self.phase_shift = phase_shift
+        self.phase = 0
+        self.TAG = "RainbowWave"
+
+    def _update(self):
+        for i in range(self.pixel_count):
+            # Calculate the position in the wave
+            position_in_wave = (i / self.wavelength + self.phase) % 1.0
+
+            # Convert the position to a hue (0-255 scale for colors)
+            hue = int(position_in_wave * 255)
+
+            # Convert hue to RGB (Neopixel uses 0-255 scale)
+            r, g, b = self.hsv_to_rgb(hue / 255.0, 1.0, 1.0)
+            self.pixels[i] = (int(r * 255), int(g * 255), int(b * 255))
+
+        # Move the wave forward
+        self.phase += self.phase_shift * self.speed
+        if self.phase >= 1.0:
+            self.phase -= 1.0
+
+    @staticmethod
+    def hsv_to_rgb(h, s, v):
+        """
+        Convert HSV to RGB.
+
+        :param h: Hue (0.0 to 1.0)
+        :param s: Saturation (0.0 to 1.0)
+        :param v: Value/Brightness (0.0 to 1.0)
+        :return: Tuple (r, g, b) with each value in range 0.0 to 1.0
+        """
+        i = int(h * 6)
+        f = h * 6 - i
+        p = v * (1 - s)
+        q = v * (1 - f * s)
+        t = v * (1 - (1 - f) * s)
+        i %= 6
+        if i == 0:
+            return v, t, p
+        if i == 1:
+            return q, v, p
+        if i == 2:
+            return p, v, t
+        if i == 3:
+            return p, q, v
+        if i == 4:
+            return t, p, v
+        if i == 5:
+            return v, p, q
+
+if __name__ == "__main__":
+    LED_COUNT  = 400         # Number of LED pixels.
+    LED_PIN    = board.D18   # GPIO pin connected to the pixels (18 uses PWM!).
+    pixels = neopixel.NeoPixel(LED_PIN, LED_COUNT, pixel_order=neopixel.RGB, auto_write=False, brightness=1.0)
+    animation = RainbowWave(pixels.n, pixels, speed=0.5)
+    animation.run_animation()
