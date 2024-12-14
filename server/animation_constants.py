@@ -20,6 +20,8 @@ class AnimationId(Enum):
     Twinkle=8
     TwinkleCycle=9
     Cover=10
+    Cylon=11
+    RainbowWave=12
 
 ANIMATIONS = {
     "Cycle Fade": {
@@ -62,4 +64,12 @@ ANIMATIONS = {
         "id": AnimationId.Cover.value,
         "description": "Simulates a sweeping cover effect where LEDs turn on sequentially."
     },
+    "Cylon": {
+        "id": AnimationId.Cylon.value,
+        "description": "Moving lights that fade as they move forward."
+    },
+    "RainbowWave": {
+        "id": AnimationId.RainbowWave.value,
+        "description": "Rainbow wave moving across lights"
+    }
 }

@@ -542,7 +542,7 @@ class Cover(Animation):
             self.current_color_index %= len(self.colors)
 
 class Cylon(Animation):
-    def __init__(self, pixel_count, pixels, colors, delay=0.03, fade_amount=0.75, speed=1):
+    def __init__(self, pixel_count, pixels, colors, delay=0.03, fade_amount=1.0, speed=1):
         """
         Constructor for Cylon class (Larson Scanner effect).
 
@@ -594,16 +594,75 @@ class Cylon(Animation):
         b = max(0, b - fade_amount)
         return (r, g, b)
 
+class RainbowWave(Animation):
+    def __init__(self, pixel_count, pixels, colors=None, delay=0.03, speed=1.0, wavelength=20, phase_shift=0.1):
+        """
+        Constructor for RainbowWave class.
+
+        :param pixel_count: Number of pixels on LEDs
+        :param pixels: Pixel RGB data
+        :param colors: Not used in this animation, but kept for compatibility
+        :param delay: Delay set between update calls
+        :param speed: Speed of the wave movement
+        :param wavelength: Number of pixels per cycle of the wave
+        :param phase_shift: Amount the wave shifts each update
+        """
+        super().__init__(pixel_count, pixels, delay, speed)
+        self.speed = speed
+        self.wavelength = wavelength
+        self.phase_shift = phase_shift
+        self.phase = 0
+        self.TAG = "RainbowWave"
+
+    def _update(self):
+        for i in range(self.pixel_count):
+            # Calculate the position in the wave
+            position_in_wave = (i / self.wavelength + self.phase) % 1.0
+
+            # Convert the position to a hue (0-255 scale for colors)
+            hue = int(position_in_wave * 255)
+
+            # Convert hue to RGB (Neopixel uses 0-255 scale)
+            r, g, b = self.hsv_to_rgb(hue / 255.0, 1.0, 1.0)
+            self.pixels[i] = (int(r * 255), int(g * 255), int(b * 255))
+
+        # Move the wave forward
+        self.phase += self.phase_shift * self.speed
+        if self.phase >= 1.0:
+            self.phase -= 1.0
+
+    @staticmethod
+    def hsv_to_rgb(h, s, v):
+        """
+        Convert HSV to RGB.
+
+        :param h: Hue (0.0 to 1.0)
+        :param s: Saturation (0.0 to 1.0)
+        :param v: Value/Brightness (0.0 to 1.0)
+        :return: Tuple (r, g, b) with each value in range 0.0 to 1.0
+        """
+        i = int(h * 6)
+        f = h * 6 - i
+        p = v * (1 - s)
+        q = v * (1 - f * s)
+        t = v * (1 - (1 - f) * s)
+        i %= 6
+        if i == 0:
+            return v, t, p
+        if i == 1:
+            return q, v, p
+        if i == 2:
+            return p, v, t
+        if i == 3:
+            return p, q, v
+        if i == 4:
+            return t, p, v
+        if i == 5:
+            return v, p, q
+
 if __name__ == "__main__":
     LED_COUNT  = 400         # Number of LED pixels.
     LED_PIN    = board.D18   # GPIO pin connected to the pixels (18 uses PWM!).
     pixels = neopixel.NeoPixel(LED_PIN, LED_COUNT, pixel_order=neopixel.RGB, auto_write=False, brightness=1.0)
-    CHRISTMAS_TREE_PALLETE = [
-        0x1E7C20,
-        0xB60000,
-        0x0037FB,
-        0xDF6500,
-        0x8100DB
-    ]
-    animation = Cylon(pixels.n, pixels, CHRISTMAS_TREE_PALLETE, speed=5)
+    animation = RainbowWave(pixels.n, pixels, speed=0.5)
     animation.run_animation()

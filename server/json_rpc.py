@@ -59,6 +59,8 @@ effect_classes = {
     AnimationId.Twinkle.value: Twinkle,
     AnimationId.TwinkleCycle.value: TwinkleCycle,
     AnimationId.Cover.value: Cover,
+    AnimationId.Cylon.value: Cylon,
+    AnimationId.RainbowWave.value: RainbowWave,
 }
 
 TAG = "JsonRpc"
