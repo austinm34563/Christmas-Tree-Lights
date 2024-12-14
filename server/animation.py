@@ -542,11 +542,11 @@ class Cover(Animation):
             self.current_color_index %= len(self.colors)
 
 class Cylon(Animation):
-    def __init__(self, pixel_count, pixels, colors, delay=0.03, fade_amount=1.0, speed=1):
+    def __init__(self, pixel_count, pixels, colors, delay=0.03, fade_amount=1.5, speed=1):
         """
         Constructor for Cylon class (Larson Scanner effect).
 
-        :param pixel_count: Number of pixels on leds
+        :param pixel_count: Number of pixels on LEDs
         :param pixels: Pixel RGB data
         :param colors: Color palette for animation
         :param delay: Delay set between update calls. Defaults to 10ms delay (~100 FPS)
@@ -555,29 +555,42 @@ class Cylon(Animation):
         """
         super().__init__(pixel_count, pixels, delay, speed)
         self.fade_amount = fade_amount
-        self.position = 0
-        self.reverse = False
+        self.position1 = 0  # Start the first Cylon at the bottom
+        self.reverse1 = False
+        self.position2 = pixel_count - 1  # Start the second Cylon at the top
+        self.reverse2 = True  # Second Cylon starts moving downwards
         self.color_index = 0  # To track the current color in the palette
         self.colors = colors  # Store the color palette
         self.TAG = "Cylon"
 
     def _update(self):
-        # Set the current LED to the color from the palette
-        self.pixels[self.position] = self.colors[self.color_index]
+        # Set the current LEDs to the color from the palette
+        self.pixels[self.position1] = self.colors[self.color_index]
+        self.pixels[self.position2] = self.colors[self.color_index]
 
+        # Apply fading to all pixels
         for i in range(self.pixel_count):
             self.pixels[i] = self.fade(self.pixels[i], self.fade_amount)
 
-        # Move the position back and forth (optimized logic)
-        self.position += 1 if not self.reverse else -1
-        if self.position < 0:  # Reverse when reaching the leftmost position
-            self.position = 1
-            self.reverse = False
-        elif self.position >= self.pixel_count:  # Reverse when reaching the rightmost position
-            self.position = self.pixel_count - 2
-            self.reverse = True
+        # Move the first Cylon position back and forth
+        self.position1 += 1 if not self.reverse1 else -1
+        if self.position1 < 0:
+            self.position1 = 1
+            self.reverse1 = False
+        elif self.position1 >= self.pixel_count:
+            self.position1 = self.pixel_count - 2
+            self.reverse1 = True
 
-        # Cycle through colors in the palette (optimized using modulo)
+        # Move the second Cylon position back and forth
+        self.position2 += 1 if not self.reverse2 else -1
+        if self.position2 < 0:  # Reverse when reaching the bottom
+            self.position2 = 1
+            self.reverse2 = False
+        elif self.position2 >= self.pixel_count:
+            self.position2 = self.pixel_count - 2
+            self.reverse2 = True
+
+        # Cycle through colors in the palette
         self.color_index = (self.color_index + 1) % len(self.colors)
 
     def fade(self, color, fade_amount):
@@ -608,7 +621,7 @@ class RainbowWave(Animation):
         :param phase_shift: Amount the wave shifts each update
         """
         super().__init__(pixel_count, pixels, delay, speed)
-        self.speed = speed
+        self.speed = speed * 0.5
         self.wavelength = wavelength
         self.phase_shift = phase_shift
         self.phase = 0

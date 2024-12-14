@@ -68,7 +68,7 @@ ANIMATIONS = {
         "id": AnimationId.Cylon.value,
         "description": "Moving lights that fade as they move forward."
     },
-    "RainbowWave": {
+    "Rainbow Wave": {
         "id": AnimationId.RainbowWave.value,
         "description": "Rainbow wave moving across lights"
     }
