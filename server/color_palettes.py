@@ -89,6 +89,16 @@ CHRISTMAS_PALETTE_ELEGANT_II = [
     0x228B22   # Forest Green (Tree)
 ]
 
+# Hawaiian
+HAWAIIAN_CHRISTMAS_TREE_PALETTE = [
+    0x007D04,  # Palm green
+    0xB60000,  # Hibiscus red
+    0x00A6FB,  # Ocean blue
+    0xFFD700,  # Golden sand
+    0xFF007F,  # Tropical pink
+    0xFF6000,  # sunset orange
+]
+
 # Candle Colors
 CANDLE_COLORS = [
     0xFF6414,  # Warm yellow
@@ -96,6 +106,14 @@ CANDLE_COLORS = [
     0xC85000,  # Darker orange
     0xC81E00,  # Redish orange
     0xFF0A00,  # Redish orange
+]
+
+CANDLE_COLORS_TUPLE = [
+    (255, 100, 20),  # Warm yellow
+    (255, 80, 0),    # Orange
+    (200, 80, 0),    # Darker orange
+    (200, 30, 0),    # Redish orange
+    (255, 10, 0),    # Redish orange
 ]
 
 # Blue and White
@@ -119,6 +137,7 @@ COLOR_PALETTES = {
     "Christmas Palette Classic": CHRISTMAS_PALETTE_CLASSIC,
     "Christmas Palette Elegant": CHRISTMAS_PALETTE_ELEGANT,
     "Christmas Palette Elegant II": CHRISTMAS_PALETTE_ELEGANT_II,
+    "Hawaiian Christmas": HAWAIIAN_CHRISTMAS_TREE_PALETTE,
     "Candle Colors": CANDLE_COLORS,
     "Red Green White Colors": RED_GREEN_WHITE,
     "Blue and White": BLUE_WHITE,

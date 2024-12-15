@@ -5,9 +5,10 @@ from light_control import LightControl
 from animation_constants import *
 from animation import *
 from music_sync import MusicSync
+from animation_playlist import AnimationPlaylist
 from enum import Enum
 from song_scraper import *
-from color_palettes import COLOR_PALETTES
+from color_palettes import COLOR_PALETTES, CHRISTMAS_TREE_PALLETE
 
 # json-rpc commnd tags
 METHOD_TAG = "method"
@@ -25,6 +26,9 @@ COLOR_SCHEME_TAG = "color_scheme"
 ANIMATION_EFFECT_ID_TAG = "animation_id"
 SONG_ID_TAG = "song_id"
 SONG_FILE_TAG = "file"
+ANIMATIONS_TAG = "animations"
+COLOR_SCHEMES_TAG = "color_schemes"
+PLAYLIST_TIME_DELAY_TAG = "time_delay"
 
 # error codes
 PARSE_ERROR = -32700
@@ -32,6 +36,7 @@ INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 MUSIC_NOT_PLAYING_ERROR = -32000
+ANIMATION_PLAYLIST_NOT_PLAYING_ERROR = -32001
 
 # error messages
 ERRROR_MESSAGES = {
@@ -39,29 +44,15 @@ ERRROR_MESSAGES = {
     INVALID_REQUEST : "Invalid Request",
     METHOD_NOT_FOUND : "Method not found",
     INVALID_PARAMS : "Invalid params",
-    MUSIC_NOT_PLAYING_ERROR : "No music is currently playing"
+    MUSIC_NOT_PLAYING_ERROR : "No music is currently playing",
+    ANIMATION_PLAYLIST_NOT_PLAYING_ERROR : "No animation playlist is currently playing"
 }
 
 VALID_TAGS = [METHOD_TAG, PARAMS_TAG]
 
 DEFAULT_COLOR_SCHEME = [(255, 0, 0), (0, 255, 0)]
 DEFAULT_COLOR_PALLETE = [(30,124,32), (182,0,0), (0,55,251), (223,101,0), (129,0,219)]
-
-# Map effects to their corresponding classes
-effect_classes = {
-    AnimationId.CycleFade.value: CycleFade,
-    AnimationId.Fade.value: Fade,
-    AnimationId.Blink.value: Blink,
-    AnimationId.Chase.value: Chase,
-    AnimationId.TwinkleStars.value: TwinkleStars,
-    AnimationId.CandleFlicker.value: CandleFlicker,
-    AnimationId.Bouncing.value: Bouncing,
-    AnimationId.Twinkle.value: Twinkle,
-    AnimationId.TwinkleCycle.value: TwinkleCycle,
-    AnimationId.Cover.value: Cover,
-    AnimationId.Cylon.value: Cylon,
-    AnimationId.RainbowWave.value: RainbowWave,
-}
+DEFAULT_PLAYLIST_TIME_DELAY = 120 # 2 minutes of delay
 
 TAG = "JsonRpc"
 
@@ -74,6 +65,8 @@ class JsonRpc:
             "trigger_effect" : self._trigger_effect,
             "play_song" : self._play_song,
             "stop_song" : self._stop_song,
+            "start_animation_playlist" : self._start_playlist,
+            "stop_animation_playlist" : self._stop_playlist,
             "get_palettes" : self._get_palletes,
             "get_songs" : self._get_songs,
             "get_effects" : self._get_effects,
@@ -81,6 +74,7 @@ class JsonRpc:
         self.light_controller = LightControl()
         self.animation_controller = None
         self.music_sync = None
+        self.animation_playlist = None
 
     def process_json(self, json_str):
         try:
@@ -149,15 +143,7 @@ class JsonRpc:
             Logger.error(TAG, "invalid color")
             return self._construct_error(INVALID_PARAMS)
 
-        # stop any animations that are playing
-        if self.animation_controller is not None:
-            self.animation_controller.stop_animation()
-            self.animation_controller = None
-
-        if self.music_sync is not None:
-            self.music_sync.stop_sync()
-            self.music_sync = None
-
+        self._generic_teardown()
         self.light_controller.set_color(int(params.get(COLOR_TAG), 16))
         return self._construct_result(True)
 
@@ -167,14 +153,7 @@ class JsonRpc:
             Logger.error(TAG, "invalid pallete")
             return self._construct_error(INVALID_PARAMS)
 
-        # stop any animation that are playing
-        if self.animation_controller is not None:
-            self.animation_controller.stop_animation()
-            self.animation_controller = None
-
-        if self.music_sync is not None:
-            self.music_sync.stop_sync()
-            self.music_sync = None
+        self._generic_teardown()
 
         color_pallete = params.get(PALLETE_TAG)
         color_pallete = self._validate_color_list(color_pallete, DEFAULT_COLOR_PALLETE)
@@ -198,21 +177,16 @@ class JsonRpc:
         pixel_count = self.light_controller.get_size()
         color_scheme = params.get(COLOR_SCHEME_TAG)
 
-        if self.animation_controller is not None:
-            self.animation_controller.stop_animation()
-
-        if self.music_sync is not None:
-            self.music_sync.stop_sync()
-            self.music_sync = None
+        self._generic_teardown()
 
         # Set the default color scheme based on the animation effect
-        color_scheme = self._validate_color_list(color_scheme, CANDLE_COLORS if effect_id == AnimationId.CandleFlicker.value else DEFAULT_COLOR_SCHEME)
+        color_scheme = self._validate_color_list(color_scheme, DEFAULT_COLOR_SCHEME)
 
         # convert to list of tuples if values are integers
         color_scheme = self._convert_hex_to_colors(color_scheme)
 
         # default speed to 1 if not defined
-        speed = params.get(SPEED_TAG) if params.get(SPEED_TAG) is not None else 1
+        speed = params.get(SPEED_TAG, 1)
 
         # Instantiate the appropriate animation class
         if effect_id in effect_classes:
@@ -239,11 +213,7 @@ class JsonRpc:
         # convert to list of tuples if values are integers
         color_pallete = self._convert_hex_to_colors(color_pallete)
 
-        if self.animation_controller is not None:
-            self.animation_controller.stop_animation()
-
-        if self.music_sync is not None:
-            self.music_sync.stop_sync()
+        self._generic_teardown()
 
         pixels = self.light_controller.get_pixels()
         self.music_sync = MusicSync(pixels, get_mp3_metadata()[song_id][SONG_FILE_TAG], color_pallete)
@@ -258,6 +228,53 @@ class JsonRpc:
         self.music_sync = None
         return self._construct_result(True)
 
+    def _start_playlist(self, params):
+        animations_id = params.get(ANIMATIONS_TAG)
+        if animations_id is None:
+            Logger.error(TAG, "No animations provided")
+            return self._construct_error(INVALID_PARAMS)
+
+        color_schemes_id = params.get(COLOR_SCHEMES_TAG)
+        if color_schemes_id is None:
+            Logger.error(TAG, "No color schemes provided")
+            return self._construct_error(INVALID_PARAMS)
+
+        animations = []
+        speeds = []
+        for animation in animations_id:
+            animation_id = animation.get(ANIMATION_EFFECT_ID_TAG)
+            speed = animation.get(SPEED_TAG, 1.0)
+            if animation_id is None:
+                Logger.warning(TAG, "Invalid animation provided. Skipping from playlist")
+                continue
+            animations.append(animation_id)
+            speeds.append(speed)
+
+        color_schemes = []
+        for color_scheme in color_schemes_id:
+            color_scheme = self._validate_color_list(color_scheme, DEFAULT_COLOR_PALLETE)
+            color_scheme = self._convert_hex_to_colors(color_scheme)
+            color_schemes.append(color_scheme)
+
+        self._generic_teardown()
+
+        pixels = self.light_controller.get_pixels()
+        time_delay = params.get(PLAYLIST_TIME_DELAY_TAG, DEFAULT_PLAYLIST_TIME_DELAY)
+        self.animation_playlist = AnimationPlaylist(pixels, animations, color_schemes, speeds, time_delay)
+        self.animation_playlist.start_playlist()
+        return self._construct_result(True)
+
+    def _stop_playlist(self, params):
+        if self.animation_playlist is None:
+            return self._construct_error(ANIMATION_PLAYLIST_NOT_PLAYING_ERROR)
+        self.animation_playlist.stop_playlist()
+        self.animation_playlist = None
+
+        # now that is stopped display a default palette
+        self.light_controller.set_color_pallete(CHRISTMAS_TREE_PALLETE)
+
+        return self._construct_result(True)
+
     def _get_songs(self, params):
         return self._construct_result(get_mp3_metadata())
 
@@ -267,5 +284,15 @@ class JsonRpc:
     def _get_effects(self, params):
         return self._construct_result(ANIMATIONS)
 
-    # TODOs
-    #  - Be able to query basic info (Animation ids, Music songs, Color palettes)
+    def _generic_teardown(self):
+        if self.animation_controller is not None:
+            self.animation_controller.stop_animation()
+            self.animation_controller = None
+
+        if self.music_sync is not None:
+            self.music_sync.stop_sync()
+            self.music_sync = None
+
+        if self.animation_playlist is not None:
+            self.animation_playlist.stop_playlist()
+            self.animation_playlist = None

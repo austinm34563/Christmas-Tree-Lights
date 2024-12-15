@@ -1,13 +1,6 @@
 
 from enum import Enum
-
-CANDLE_COLORS = [
-    (255, 100, 20),  # Warm yellow
-    (255, 80, 0),    # Orange
-    (200, 80, 0),    # Darker orange
-    (200, 30, 0),    # Redish orange
-    (255, 10, 0),    # Redish orange
-]
+from animation import *
 
 class AnimationId(Enum):
     CycleFade=1
@@ -68,8 +61,24 @@ ANIMATIONS = {
         "id": AnimationId.Cylon.value,
         "description": "Moving lights that fade as they move forward."
     },
-    "RainbowWave": {
+    "Rainbow Wave": {
         "id": AnimationId.RainbowWave.value,
         "description": "Rainbow wave moving across lights"
     }
+}
+
+# Map effects to their corresponding classes
+effect_classes = {
+    AnimationId.CycleFade.value: CycleFade,
+    AnimationId.Fade.value: Fade,
+    AnimationId.Blink.value: Blink,
+    AnimationId.Chase.value: Chase,
+    AnimationId.TwinkleStars.value: TwinkleStars,
+    AnimationId.CandleFlicker.value: CandleFlicker,
+    AnimationId.Bouncing.value: Bouncing,
+    AnimationId.Twinkle.value: Twinkle,
+    AnimationId.TwinkleCycle.value: TwinkleCycle,
+    AnimationId.Cover.value: Cover,
+    AnimationId.Cylon.value: Cylon,
+    AnimationId.RainbowWave.value: RainbowWave,
 }
