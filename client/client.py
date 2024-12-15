@@ -22,11 +22,9 @@ def pick_command():
     print("3. Pick Pallette")
     print("4. Start Music Sync")
     print("5. Stop Music Sync")
-    print("6. Get songs")
-    print("7. Show Palettes")
-    print("8. Show Animation/Effects List")
+    print("6. Create and start animation playlist")
+    print("7. Stop animation playlist")
     return input("Enter command to send to server (or 'exit' to quit): ")
-
 
 
 def convert_integer_input(integer: str):
@@ -179,6 +177,71 @@ def send_stop_music_sync_command():
     }
     return json.dumps(json_data)
 
+def send_start_animation_playlist_command():
+    """Prompts a user to generate and send a playlist of animations"""
+    add_animation = True
+    animations = []
+    while add_animation:
+        print()
+        names = list(ANIMATION_OPTIONS.keys())
+        for index, effect in enumerate(names):
+            info = ANIMATION_OPTIONS[effect]
+            description = info["description"]
+            print(f"{index + 1}. {effect}:\n  - {description}")
+        effect_index = int(input("Enter an animation id from above: "))
+        effect = ANIMATION_OPTIONS[names[effect_index - 1]]["id"]
+
+        # present speed options
+        print("Enter a desired speed.\n - 1.0 = default\n - 2.0 = double speed\n - 0.5 = half speed")
+        speed = float(input("Enter speed: "))
+
+        animations.append(
+            {
+                "animation_id": effect,
+                "speed": speed
+            }
+        )
+
+        add_animation = input("\nWould you like to add another animation to the playlist? (Y/n): ").strip().upper() == "Y"
+
+    add_color_scheme = True
+    color_schemes = []
+    while add_color_scheme:
+        # specify color scheme/palette options
+        print("\nPick the following Color Scheme:")
+        names = list(CHRISTMAS_PALETTES.keys())
+        for index, pallete in enumerate(names):
+            print(f"{index + 1}. {pallete}")
+
+        # specifies an option for pre-loaded color on pi server
+        print(f"{len(names) + 1}. Default colors loaded on pi server.")
+
+        scheme_choice = abs(int(input("Choose a scheme from the list above: ")))
+        scheme = CHRISTMAS_PALETTES[names[scheme_choice - 1]] if scheme_choice <= len(names) else []
+        color_schemes.append(scheme)
+
+        add_color_scheme = input("\nWould you like to add another color scheme? (Y/n): ").strip().upper() == "Y"
+
+    time_delay = int(input("\nEnter the time delay between each animation (in seconds): "))
+
+    json_data = {
+        "method" : "start_animation_playlist",
+        "params" : {
+            "animations" : animations,
+            "color_schemes" : color_schemes,
+            "time_delay" : time_delay
+        }
+    }
+    return json.dumps(json_data)
+
+
+def send_stop_animation_playlist_command():
+    json_data = {
+        "method" : "stop_animation_playlist",
+        "params" : {},
+    }
+    return json.dumps(json_data)
+
 
 def get_songs():
     """Constructs `get_songs` command"""
@@ -222,9 +285,8 @@ def construct_json(command) -> str:
         3: send_set_pallete_command,
         4: send_start_music_sync_command,
         5: send_stop_music_sync_command,
-        6: get_songs,
-        7: get_palettes,
-        8: get_effects,
+        6: send_start_animation_playlist_command,
+        7: send_stop_animation_playlist_command,
     }
     return commands[command]()
 
@@ -236,7 +298,6 @@ def main():
         global SONG_OPTIONS
         s.connect((HOST, PORT))  # Connect to the server
         print(f"Connected to server at {HOST}:{PORT}")
-
 
         s.sendall(get_palettes().encode('utf-8'))
         data = s.recv(8192)
@@ -266,8 +327,6 @@ def main():
 
             # Print the JSON data in a nice, readable format
             print(f"Received from server:\n{json.dumps(json_data, indent=4)}")
-
-
 
 if __name__ == "__main__":
     main()
