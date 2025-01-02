@@ -300,16 +300,27 @@ def main():
         print(f"Connected to server at {HOST}:{PORT}")
 
         s.sendall(get_palettes().encode('utf-8'))
-        data = s.recv(8192)
+        data = s.recv(32768)
         CHRISTMAS_PALETTES = json.loads(data.decode('utf-8'))["result"]
 
         s.sendall(get_effects().encode('utf-8'))
-        data = s.recv(8192)
+        data = s.recv(32768)
         ANIMATION_OPTIONS = json.loads(data.decode('utf-8'))["result"]
 
         s.sendall(get_songs().encode('utf-8'))
-        data = s.recv(8192)
-        SONG_OPTIONS = json.loads(data.decode('utf-8'))["result"]
+
+        data = b""  # Use a bytes object to accumulate received data
+        while True:
+            try:
+                chunk = s.recv(32768)
+                if not chunk:
+                    raise ConnectionError("Connection closed before receiving valid JSON.")
+                data += chunk
+                SONG_OPTIONS = json.loads(data.decode('utf-8'))["result"]
+                break  # Exit the loop once JSON is successfully parsed
+            except json.JSONDecodeError:
+                # Continue receiving more data if JSON is incomplete
+                continue
 
         while True:
             command = pick_command()
