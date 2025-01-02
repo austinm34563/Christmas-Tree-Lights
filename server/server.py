@@ -5,7 +5,7 @@ from logger import Logger
 
 HOST = '0.0.0.0'  # Listen on all interfaces
 PORT = 65432      # Arbitrary non-privileged port
-MAX_CLIENTS = 5   # Set the maximum number of concurrent clients
+MAX_CLIENTS = 100 # Set the maximum number of concurrent clients
 
 # A lock to synchronize access to the client count
 client_count_lock = threading.Lock()
