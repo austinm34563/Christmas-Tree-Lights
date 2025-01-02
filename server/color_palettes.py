@@ -116,6 +116,21 @@ CANDLE_COLORS_TUPLE = [
     (255, 10, 0),    # Redish orange
 ]
 
+BRAT_PALETTE = [
+    0x22FF00,  # Neon Slime Green
+    0xFFFFFF,  # Bright White
+    0xFF10F0   # Electric Pink (Optional Accent)
+]
+
+SPIDERMAN_PALETTE = [
+    0xDF0002, # Bright red
+    0x0053C0, # light blue
+    0xFFFFFF, # white
+    0xB10000, # Dark red
+    0x0000B1, # dark blue
+    0xFFFFFF, # white
+]
+
 # Blue and White
 BLUE_WHITE = [
     0x0000FF,
@@ -138,6 +153,8 @@ COLOR_PALETTES = {
     "Christmas Palette Elegant": CHRISTMAS_PALETTE_ELEGANT,
     "Christmas Palette Elegant II": CHRISTMAS_PALETTE_ELEGANT_II,
     "Hawaiian Christmas": HAWAIIAN_CHRISTMAS_TREE_PALETTE,
+    "Brat Palette": BRAT_PALETTE,
+    "Spiderman Palette": SPIDERMAN_PALETTE,
     "Candle Colors": CANDLE_COLORS,
     "Red Green White Colors": RED_GREEN_WHITE,
     "Blue and White": BLUE_WHITE,
