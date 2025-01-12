@@ -24,6 +24,8 @@ def pick_command():
     print("5. Stop Music Sync")
     print("6. Create and start animation playlist")
     print("7. Stop animation playlist")
+    print("8. Download song from YouTube URL")
+    print("9. Refresh song list")
     return input("Enter command to send to server (or 'exit' to quit): ")
 
 
@@ -56,7 +58,7 @@ def send_set_light_command():
             "color" : str(hex(color))
         }
     }
-    return json.dumps(json_data)
+    return json.dumps(json_data), False
 
 
 
@@ -102,7 +104,7 @@ def send_trigger_effect_command():
             "speed" : speed
         }
     }
-    return json.dumps(json_data)
+    return json.dumps(json_data), False
 
 
 def send_set_pallete_command():
@@ -126,7 +128,7 @@ def send_set_pallete_command():
             "pallete" : CHRISTMAS_PALETTES[names[pallete_choice - 1]]
         }
     }
-    return json.dumps(json_data)
+    return json.dumps(json_data), False
 
 
 def send_start_music_sync_command():
@@ -165,7 +167,7 @@ def send_start_music_sync_command():
             "pallete" : scheme,
         }
     }
-    return json.dumps(json_data)
+    return json.dumps(json_data), False
 
 def send_stop_music_sync_command():
     """Constructs `stop_songs` command"""
@@ -175,7 +177,7 @@ def send_stop_music_sync_command():
         "method" : "stop_song",
         "params" : {}
     }
-    return json.dumps(json_data)
+    return json.dumps(json_data), False
 
 def send_start_animation_playlist_command():
     """Prompts a user to generate and send a playlist of animations"""
@@ -232,7 +234,7 @@ def send_start_animation_playlist_command():
             "time_delay" : time_delay
         }
     }
-    return json.dumps(json_data)
+    return json.dumps(json_data), False
 
 
 def send_stop_animation_playlist_command():
@@ -240,7 +242,23 @@ def send_stop_animation_playlist_command():
         "method" : "stop_animation_playlist",
         "params" : {},
     }
-    return json.dumps(json_data)
+    return json.dumps(json_data), False
+
+
+def send_download_music_command():
+    url = input("Enter a Youtube URL: ")
+    title = input("Enter the title: ")
+    artist = input("Enter the artist: ")
+
+    json_data = {
+        "method": "download_song",
+        "params" : {
+            "url" : url,
+            "title" : title,
+            "artist" : artist,
+        },
+    }
+    return json.dumps(json_data), False
 
 
 def get_songs():
@@ -249,7 +267,7 @@ def get_songs():
         "method" : "get_songs",
         "params" : {}
     }
-    return json.dumps(json_data)
+    return json.dumps(json_data), True
 
 
 def get_palettes():
@@ -258,7 +276,7 @@ def get_palettes():
         "method" : "get_palettes",
         "params" : {}
     }
-    return json.dumps(json_data)
+    return json.dumps(json_data), True
 
 
 def get_effects():
@@ -267,7 +285,7 @@ def get_effects():
         "method" : "get_effects",
         "params" : {}
     }
-    return json.dumps(json_data)
+    return json.dumps(json_data), True
 
 
 def construct_json(command) -> str:
@@ -287,8 +305,26 @@ def construct_json(command) -> str:
         5: send_stop_music_sync_command,
         6: send_start_animation_playlist_command,
         7: send_stop_animation_playlist_command,
+        8: send_download_music_command,
+        9: get_songs,
     }
     return commands[command]()
+
+def recv_all(s):
+    # Receive the response from the server
+    data = b""
+    while True:
+        try:
+            chunk = s.recv(4096)
+            if not chunk:
+                raise ConnectionError("Connection closed before receiving valid JSON.")
+            data += chunk
+            json_data = json.loads(data.decode('utf-8'))
+            break  # Exit the loop once JSON is successfully parsed
+        except json.JSONDecodeError:
+            # Continue receiving more data if JSON is incomplete
+            continue
+    return json_data
 
 
 def main():
@@ -299,28 +335,17 @@ def main():
         s.connect((HOST, PORT))  # Connect to the server
         print(f"Connected to server at {HOST}:{PORT}")
 
-        s.sendall(get_palettes().encode('utf-8'))
-        data = s.recv(32768)
-        CHRISTMAS_PALETTES = json.loads(data.decode('utf-8'))["result"]
+        palette_command, _ = get_palettes()
+        s.sendall(palette_command.encode('utf-8'))
+        CHRISTMAS_PALETTES = recv_all(s)["result"]
 
-        s.sendall(get_effects().encode('utf-8'))
-        data = s.recv(32768)
-        ANIMATION_OPTIONS = json.loads(data.decode('utf-8'))["result"]
+        effects_command, _ = get_effects()
+        s.sendall(effects_command.encode('utf-8'))
+        ANIMATION_OPTIONS = recv_all(s)["result"]
 
-        s.sendall(get_songs().encode('utf-8'))
-
-        data = b""  # Use a bytes object to accumulate received data
-        while True:
-            try:
-                chunk = s.recv(32768)
-                if not chunk:
-                    raise ConnectionError("Connection closed before receiving valid JSON.")
-                data += chunk
-                SONG_OPTIONS = json.loads(data.decode('utf-8'))["result"]
-                break  # Exit the loop once JSON is successfully parsed
-            except json.JSONDecodeError:
-                # Continue receiving more data if JSON is incomplete
-                continue
+        songs_command, _ = get_songs()
+        s.sendall(songs_command.encode('utf-8'))
+        SONG_OPTIONS = recv_all(s)["result"]
 
         while True:
             command = pick_command()
@@ -329,15 +354,15 @@ def main():
                 break
 
             # Send the command to the server
-            json_command = construct_json(int(command))
+            json_command, is_getter = construct_json(int(command))
             s.sendall(json_command.encode('utf-8'))
+            json_data = recv_all(s)
 
-            # Receive the response from the server
-            data = s.recv(4096)
-            json_data = json.loads(data.decode('utf-8'))
-
-            # Print the JSON data in a nice, readable format
-            print(f"Received from server:\n{json.dumps(json_data, indent=4)}")
+            if is_getter:
+                SONG_OPTIONS = json_data["result"]
+                print(f"Succesfully received data from server")
+            else:
+                print(f"Received from server:\n{json.dumps(json_data, indent=4)}")
 
 if __name__ == "__main__":
     main()
