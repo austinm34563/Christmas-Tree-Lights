@@ -9,6 +9,7 @@ from animation_playlist import AnimationPlaylist
 from enum import Enum
 from song_scraper import *
 from color_palettes import COLOR_PALETTES, CHRISTMAS_TREE_PALLETE
+from song_downloader import download_music
 
 # json-rpc commnd tags
 METHOD_TAG = "method"
@@ -29,6 +30,9 @@ SONG_FILE_TAG = "file"
 ANIMATIONS_TAG = "animations"
 COLOR_SCHEMES_TAG = "color_schemes"
 PLAYLIST_TIME_DELAY_TAG = "time_delay"
+URL_TAG = "url"
+SONG_TITLE_TAG = "title"
+SONG_ARTIST_TAG = "artist"
 
 # error codes
 PARSE_ERROR = -32700
@@ -67,6 +71,7 @@ class JsonRpc:
             "stop_song" : self._stop_song,
             "start_animation_playlist" : self._start_playlist,
             "stop_animation_playlist" : self._stop_playlist,
+            "download_song" : self._download_song,
             "get_palettes" : self._get_palletes,
             "get_songs" : self._get_songs,
             "get_effects" : self._get_effects,
@@ -273,6 +278,17 @@ class JsonRpc:
         # now that is stopped display a default palette
         self.light_controller.set_color_pallete(CHRISTMAS_TREE_PALLETE)
 
+        return self._construct_result(True)
+
+    def _download_song(self, params):
+        url = params.get(URL_TAG)
+        title = params.get(SONG_TITLE_TAG)
+        song = params.get(SONG_ARTIST_TAG)
+        if url is None or title is None or song is None:
+            Logger.error(TAG, "Invalid params")
+            return self._construct_error(INVALID_PARAMS)
+
+        download_music(url, title, song)
         return self._construct_result(True)
 
     def _get_songs(self, params):
