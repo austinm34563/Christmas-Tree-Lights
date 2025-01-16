@@ -1,6 +1,7 @@
 import socket
 import json
 from time import sleep
+from enum import Enum
 
 HOST = 'raspberrypi.local'  # Replace with the Raspberry Pi's IP address on the Wi-Fi network
 PORT = 65432          # The port used by the server
@@ -8,7 +9,14 @@ PORT = 65432          # The port used by the server
 CHRISTMAS_PALETTES = {}
 ANIMATION_OPTIONS = {}
 SONG_OPTIONS = {}
+VOLUME_STATE = 100 # initial value
 
+class CachedId(Enum):
+    SONGS=1
+    VOLUME_STATE=2
+    PALLETES=3
+    ANIMATION_EFFECTS=4
+    NONE=5
 
 def pick_command():
     """
@@ -16,7 +24,7 @@ def pick_command():
 
     :return: Associated command id
     """
-    print("Here are the list of commands:")
+    print("\nHere are the list of commands:")
     print("1. Set Light")
     print("2. Pick Effect")
     print("3. Pick Pallette")
@@ -26,6 +34,8 @@ def pick_command():
     print("7. Stop animation playlist")
     print("8. Download song from YouTube URL")
     print("9. Refresh song list")
+    print("10. Set Volume")
+    print("11. Get Volume")
     return input("Enter command to send to server (or 'exit' to quit): ")
 
 
@@ -58,7 +68,7 @@ def send_set_light_command():
             "color" : str(hex(color))
         }
     }
-    return json.dumps(json_data), False
+    return json.dumps(json_data), False, CachedId.NONE
 
 
 
@@ -104,7 +114,7 @@ def send_trigger_effect_command():
             "speed" : speed
         }
     }
-    return json.dumps(json_data), False
+    return json.dumps(json_data), False, CachedId.NONE
 
 
 def send_set_pallete_command():
@@ -128,7 +138,7 @@ def send_set_pallete_command():
             "pallete" : CHRISTMAS_PALETTES[names[pallete_choice - 1]]
         }
     }
-    return json.dumps(json_data), False
+    return json.dumps(json_data), False, CachedId.NONE
 
 
 def send_start_music_sync_command():
@@ -167,7 +177,7 @@ def send_start_music_sync_command():
             "pallete" : scheme,
         }
     }
-    return json.dumps(json_data), False
+    return json.dumps(json_data), False, CachedId.NONE
 
 def send_stop_music_sync_command():
     """Constructs `stop_songs` command"""
@@ -177,7 +187,7 @@ def send_stop_music_sync_command():
         "method" : "stop_song",
         "params" : {}
     }
-    return json.dumps(json_data), False
+    return json.dumps(json_data), False, CachedId.NONE
 
 def send_start_animation_playlist_command():
     """Prompts a user to generate and send a playlist of animations"""
@@ -234,7 +244,7 @@ def send_start_animation_playlist_command():
             "time_delay" : time_delay
         }
     }
-    return json.dumps(json_data), False
+    return json.dumps(json_data), False, CachedId.NONE
 
 
 def send_stop_animation_playlist_command():
@@ -242,7 +252,7 @@ def send_stop_animation_playlist_command():
         "method" : "stop_animation_playlist",
         "params" : {},
     }
-    return json.dumps(json_data), False
+    return json.dumps(json_data), False, CachedId.NONE
 
 
 def send_download_music_command():
@@ -258,7 +268,29 @@ def send_download_music_command():
             "artist" : artist,
         },
     }
-    return json.dumps(json_data), False
+    return json.dumps(json_data), False, CachedId.NONE
+
+
+def set_volume():
+    global VOLUME_STATE
+    print(f"\nVolume is currently = {VOLUME_STATE}%")
+    volume = int(input("Enter a volume between 0-100: "))
+    json_data = {
+        "method": "set_volume",
+        "params" : {
+            "volume" : volume
+        },
+    }
+    VOLUME_STATE = volume
+    return json.dumps(json_data), False, CachedId.NONE
+
+
+def get_volume():
+    json_data = {
+        "method" : "get_volume",
+        "params" : {},
+    }
+    return json.dumps(json_data), True, CachedId.VOLUME_STATE
 
 
 def get_songs():
@@ -267,7 +299,7 @@ def get_songs():
         "method" : "get_songs",
         "params" : {}
     }
-    return json.dumps(json_data), True
+    return json.dumps(json_data), True, CachedId.SONGS
 
 
 def get_palettes():
@@ -276,7 +308,7 @@ def get_palettes():
         "method" : "get_palettes",
         "params" : {}
     }
-    return json.dumps(json_data), True
+    return json.dumps(json_data), True, CachedId.PALLETES
 
 
 def get_effects():
@@ -285,7 +317,7 @@ def get_effects():
         "method" : "get_effects",
         "params" : {}
     }
-    return json.dumps(json_data), True
+    return json.dumps(json_data), True, CachedId.ANIMATION_EFFECTS
 
 
 def construct_json(command) -> str:
@@ -307,6 +339,8 @@ def construct_json(command) -> str:
         7: send_stop_animation_playlist_command,
         8: send_download_music_command,
         9: get_songs,
+        10: set_volume,
+        11: get_volume,
     }
     return commands[command]()
 
@@ -332,20 +366,25 @@ def main():
         global CHRISTMAS_PALETTES
         global ANIMATION_OPTIONS
         global SONG_OPTIONS
+        global VOLUME_STATE
         s.connect((HOST, PORT))  # Connect to the server
         print(f"Connected to server at {HOST}:{PORT}")
 
-        palette_command, _ = get_palettes()
+        palette_command, _, _ = get_palettes()
         s.sendall(palette_command.encode('utf-8'))
         CHRISTMAS_PALETTES = recv_all(s)["result"]
 
-        effects_command, _ = get_effects()
+        effects_command, _, _ = get_effects()
         s.sendall(effects_command.encode('utf-8'))
         ANIMATION_OPTIONS = recv_all(s)["result"]
 
-        songs_command, _ = get_songs()
+        songs_command, _, _ = get_songs()
         s.sendall(songs_command.encode('utf-8'))
         SONG_OPTIONS = recv_all(s)["result"]
+
+        volume_command, _, _ = get_volume()
+        s.sendall(volume_command.encode('utf-8'))
+        VOLUME_STATE = recv_all(s)["result"]["volume"]
 
         while True:
             command = pick_command()
@@ -354,12 +393,21 @@ def main():
                 break
 
             # Send the command to the server
-            json_command, is_getter = construct_json(int(command))
+            json_command, is_getter, cache_type = construct_json(int(command))
             s.sendall(json_command.encode('utf-8'))
             json_data = recv_all(s)
 
             if is_getter:
-                SONG_OPTIONS = json_data["result"]
+                result = json_data["result"]
+                if cache_type == CachedId.SONGS:
+                    SONG_OPTIONS = result
+                elif cache_type == CachedId.VOLUME_STATE:
+                    VOLUME_STATE = result["volume"]
+                    print(f"Volume = {VOLUME_STATE}")
+                elif cache_type == CachedId.PALLETES:
+                    CHRISTMAS_PALETTES = result
+                elif cache_type == CachedId.ANIMATION_EFFECTS:
+                    ANIMATION_OPTIONS = result
                 print(f"Succesfully received data from server")
             else:
                 print(f"Received from server:\n{json.dumps(json_data, indent=4)}")
