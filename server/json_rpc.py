@@ -1,5 +1,6 @@
 
 from json import loads, dumps
+from alsaaudio import Mixer
 from logger import Logger
 from light_control import LightControl
 from animation_constants import *
@@ -33,6 +34,7 @@ PLAYLIST_TIME_DELAY_TAG = "time_delay"
 URL_TAG = "url"
 SONG_TITLE_TAG = "title"
 SONG_ARTIST_TAG = "artist"
+VOLUME_TAG = "volume"
 
 # error codes
 PARSE_ERROR = -32700
@@ -72,6 +74,8 @@ class JsonRpc:
             "start_animation_playlist" : self._start_playlist,
             "stop_animation_playlist" : self._stop_playlist,
             "download_song" : self._download_song,
+            "set_volume" : self._set_volume,
+            "get_volume" : self._get_volume,
             "get_palettes" : self._get_palletes,
             "get_songs" : self._get_songs,
             "get_effects" : self._get_effects,
@@ -80,6 +84,7 @@ class JsonRpc:
         self.animation_controller = None
         self.music_sync = None
         self.animation_playlist = None
+        self.volume_mixer = Mixer()
 
     def process_json(self, json_str):
         try:
@@ -290,6 +295,21 @@ class JsonRpc:
 
         download_music(url, title, song)
         return self._construct_result(True)
+
+    def _set_volume(self, params):
+        volume_percentage = params.get(VOLUME_TAG)
+        if volume_percentage is None:
+            Logger.error(TAG, "Invalid params")
+            return self._construct_error(INVALID_PARAMS)
+
+        self.volume_mixer.setvolume(volume_percentage)
+        return self._construct_result(True)
+
+    def _get_volume(self, params):
+        volume_result = {
+            VOLUME_TAG : self.volume_mixer.getvolume()[0]
+        }
+        return self._construct_result(volume_result)
 
     def _get_songs(self, params):
         return self._construct_result(get_mp3_metadata())
