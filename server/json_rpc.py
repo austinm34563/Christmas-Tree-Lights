@@ -35,6 +35,7 @@ URL_TAG = "url"
 SONG_TITLE_TAG = "title"
 SONG_ARTIST_TAG = "artist"
 VOLUME_TAG = "volume"
+LED_COUNT_TAG = "led_count"
 
 # error codes
 PARSE_ERROR = -32700
@@ -75,6 +76,7 @@ class JsonRpc:
             "stop_animation_playlist" : self._stop_playlist,
             "download_song" : self._download_song,
             "set_volume" : self._set_volume,
+            "set_led_count" : self._set_led_count,
             "get_volume" : self._get_volume,
             "get_palettes" : self._get_palletes,
             "get_songs" : self._get_songs,
@@ -303,6 +305,16 @@ class JsonRpc:
             return self._construct_error(INVALID_PARAMS)
 
         self.volume_mixer.setvolume(volume_percentage)
+        return self._construct_result(True)
+
+    def _set_led_count(self, params):
+        led_count = params.get(LED_COUNT_TAG)
+        if led_count is None:
+            Logger.error(TAG, "Invalid params")
+            return self._construct_error(INVALID_PARAMS)
+
+        if self.light_control.get_size() != led_count:
+            self.light_controller = LightControl(led_count)
         return self._construct_result(True)
 
     def _get_volume(self, params):

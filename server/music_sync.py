@@ -24,6 +24,7 @@ class MusicSync:
         self.audio_manager = None
         self.stream = None
         self.chunk_duration = None
+        self.max_val = 0
 
         self.frames = []
 
@@ -136,6 +137,7 @@ class MusicSync:
             # Perform FFT analysis on the combined stereo chunk
             magnitudes = self._perform_fft(chunk)
             smoothed_magnitudes = self._smooth_magnitudes(magnitudes)
+            self.max_val = max(self.max_val, smoothed_magnitudes.max())
             self.frames.append(smoothed_magnitudes)
 
     def _interpolate_color(self, color1, color2, t):
@@ -145,23 +147,35 @@ class MusicSync:
         )
 
     def _map_frequencies_to_leds(self, magnitudes):
-        """Map frequency magnitudes to LED indices with balanced low, mid, and high frequency emphasis."""
-        max_magnitude = np.max(magnitudes) if np.max(magnitudes) > 0 else 1
-        min_magnitude = np.min(magnitudes) if np.min(magnitudes) < max_magnitude else 0
+        """Map frequency magnitudes to LED indices using a logarithmic frequency scale."""
+        max_magnitude = self.max_val
+        min_magnitude = 0
 
         # Prevent divide-by-zero in normalization
         range_magnitude = max_magnitude - min_magnitude
         range_magnitude = range_magnitude if range_magnitude > 0 else 1
 
+        # Determine frequency resolution (Hz per FFT bin)
+        freq_resolution = self.sample_rate / self.chunk_size
+
+        # Define frequency range (in Hz)
+        min_freq = 20
+        max_freq = min(12000, self.sample_rate // 2)  # Limit to Nyquist frequency
+
+        # Generate logarithmically spaced frequency edges (in Hz)
+        freq_edges_hz = np.logspace(np.log10(min_freq), np.log10(max_freq), self.num_pixels + 1)
+
+        # Convert frequency edges to bin indices
+        freq_edges_bins = np.clip((freq_edges_hz / freq_resolution).astype(int), 0, len(magnitudes) - 1)
+
         led_colors = []
 
-        # Calculate the frequency range per LED
-        frequency_bands = np.linspace(0, len(magnitudes), self.num_pixels + 1, dtype=int)
-
         for i in range(self.num_pixels):
-            # Average magnitudes in the current frequency band
-            band_start = frequency_bands[i]
-            band_end = frequency_bands[i + 1]
+            band_start = freq_edges_bins[i]
+            band_end = freq_edges_bins[i + 1]
+            if band_end <= band_start:
+                band_end = band_start + 1  # Ensure non-empty range
+
             band_magnitude = np.mean(magnitudes[band_start:band_end])
 
             # Normalize the magnitude to a brightness value

@@ -15,6 +15,9 @@ class AnimationId(Enum):
     Cover=10
     Cylon=11
     RainbowWave=12
+    SparkleGlitter=13
+    BurstingSparkle=14
+    Fireworks=15
 
 ANIMATIONS = {
     "Cycle Fade": {
@@ -64,6 +67,18 @@ ANIMATIONS = {
     "Rainbow Wave": {
         "id": AnimationId.RainbowWave.value,
         "description": "Rainbow wave moving across lights"
+    },
+    "Sparkle Glitter": {
+        "id": AnimationId.SparkleGlitter.value,
+        "description": "Random flashes (sparkles) across the LED strip"
+    },
+    "Bursting Sparkle": {
+        "id": AnimationId.BurstingSparkle.value,
+        "description": "Sparkle fire bursts across the LED strip."
+    },
+    "Fireworks": {
+        "id": AnimationId.Fireworks.value,
+        "description": "Group of \"fireworks\" bursting."
     }
 }
 
@@ -81,4 +96,7 @@ effect_classes = {
     AnimationId.Cover.value: Cover,
     AnimationId.Cylon.value: Cylon,
     AnimationId.RainbowWave.value: RainbowWave,
+    AnimationId.SparkleGlitter.value: SparkleGlitter,
+    AnimationId.BurstingSparkle.value: BurstingSparkle,
+    AnimationId.Fireworks.value: Fireworks,
 }
