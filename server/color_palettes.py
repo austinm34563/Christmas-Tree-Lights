@@ -142,7 +142,45 @@ BLUE = [
     0x0000FF,
 ]
 
+# America
+AMERICA = [
+    0xFF0000,
+    0xFFFFFF,
+    0x0000FF,
+]
+
+# Fireworks
+CLASSIC_FIREWORKS = [
+    0xFFAA00,  # Orange-Gold
+    0xFFFF66,  # Pale Yellow
+    0xFF0000,  # Red
+    0xFFFFFF,  # White
+    0xAAAAAA,  # Silver/Grey
+]
+
+# Color Fireworks
+FESTIVAL = [
+    0xFF0000,  # Red
+    0xFF7F00,  # Orange
+    0xFFFF00,  # Yellow
+    0x00FF00,  # Green
+    0x0000FF,  # Blue
+    0x4B0082,  # Indigo
+    0x8B00FF,  # Violet
+]
+
+WICKED = [
+    0x39FF14, # Neon Green
+    0x8B00FF, # Electric Purple
+    0x39FF14, # Neon Green
+    0xFF0080, # Neon Pink
+]
+
 COLOR_PALETTES = {
+    "American Palette": AMERICA,
+    "Classic Fireworks": CLASSIC_FIREWORKS,
+    "Festival Multicolor Fireworks": FESTIVAL,
+    "Wicked": WICKED,
     "Christmas Tree Palette": CHRISTMAS_TREE_PALLETE,
     "Christmas Snow": CHRISTMAS_SNOW,
     "Generic Christmas": GENERIC_CHRISTMAS,

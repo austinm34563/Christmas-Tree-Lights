@@ -1,5 +1,5 @@
 
-import neopixel
+from neopixel import NeoPixel, RGB
 import board
 from logger import Logger
 import time
@@ -7,12 +7,12 @@ import time
 TAG = "LightControl"
 
 # LED strip configuration:
-LED_COUNT  = 400         # Number of LED pixels.
+LED_COUNT  = 400          # Number of LED pixels.
 LED_PIN    = board.D18   # GPIO pin connected to the pixels (18 uses PWM!).
 
 class LightControl:
     def __init__(self, led_size=LED_COUNT):
-        self.leds = neopixel.NeoPixel(LED_PIN, led_size, pixel_order=neopixel.RGB, auto_write=False, brightness=1.0)
+        self.leds = NeoPixel(LED_PIN, led_size, pixel_order=RGB, auto_write=False, brightness=1.0)
 
     def set_color(self, color):
         Logger.info(TAG, f"Setting color to {str(hex(color)).upper()}")

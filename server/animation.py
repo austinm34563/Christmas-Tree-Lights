@@ -328,7 +328,7 @@ class CandleFlicker(Animation):
         self.pixels[:] = current_colors
 
 class Bouncing(Animation):
-    def __init__(self, pixel_count, pixels, colors, delay=0.01, speed=1, block_size=25, fps_render=60):
+    def __init__(self, pixel_count, pixels, colors, delay=0.1, speed=1, block_size=3, fps_render=60):
         """
         Constructor for Bouncing class.
 
@@ -608,7 +608,7 @@ class Cylon(Animation):
         return (r, g, b)
 
 class RainbowWave(Animation):
-    def __init__(self, pixel_count, pixels, colors=None, delay=0.03, speed=1.0, wavelength=20, phase_shift=0.1, fps_render=60):
+    def __init__(self, pixel_count, pixels, colors=None, delay=0.06, speed=1.0, wavelength=20, phase_shift=0.1, fps_render=60):
         """
         Constructor for RainbowWave class.
 
@@ -673,9 +673,218 @@ class RainbowWave(Animation):
         if i == 5:
             return v, p, q
 
+class SparkleGlitter(Animation):
+    def __init__(self, pixel_count, pixels, colors, sparkle_chance=0.04, fade_steps=5, delay=0.05, speed=1.0, fps_render=60):
+        """
+        SparkleGlitter creates random flashes (sparkles) across the LED strip.
+
+        :param pixel_count: Number of LEDs
+        :param pixels: LED pixel array
+        :param colors: List of colors (hex or (r,g,b)) for sparkles
+        :param sparkle_chance: Probability each frame that any pixel will sparkle
+        :param fade_steps: How many frames it takes to fade out
+        :param delay: Frame delay in seconds
+        :param speed: Speed multiplier
+        :param fps_render: Target FPS
+        """
+        super().__init__(pixel_count, pixels, delay, speed, fps_render)
+        self.colors = [self._hex_to_rgb(c) for c in colors]
+        self.sparkle_chance = sparkle_chance
+        self.fade_steps = fade_steps
+        self.fade_buffer = [None] * pixel_count  # Each entry: (r, g, b, step)
+        self.TAG = "SparkleGlitter"
+        Logger.info(self.TAG, "SparkleGlitter animation initialized")
+
+    def _hex_to_rgb(self, color):
+        if isinstance(color, int):
+            return ((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF)
+        return color
+
+    def _update(self):
+        for i in range(self.pixel_count):
+            # If currently fading
+            if self.fade_buffer[i] is not None:
+                r, g, b, step = self.fade_buffer[i]
+                step += 1
+                if step >= self.fade_steps:
+                    self.fade_buffer[i] = None
+                    self.pixels[i] = (0, 0, 0)
+                else:
+                    fade_factor = (self.fade_steps - step) / self.fade_steps
+                    self.pixels[i] = (
+                        int(r * fade_factor),
+                        int(g * fade_factor),
+                        int(b * fade_factor)
+                    )
+                    self.fade_buffer[i] = (r, g, b, step)
+
+            # Maybe start a new sparkle
+            elif random.random() < self.sparkle_chance:
+                color = random.choice(self.colors)
+                self.pixels[i] = color
+                self.fade_buffer[i] = (*color, 0)
+
+            else:
+                # Stay off if nothing else is going on
+                self.pixels[i] = (0, 0, 0)
+
+class BurstingSparkle(Animation):
+    def __init__(self, pixel_count, pixels, colors, spark_colors=None, sparkle_density=0.15, fade_steps=6, delay=0.05, speed=1.0, fps_render=60):
+        """
+        Creates synchronized sparkle bursts across the strip.
+
+        :param pixel_count: Number of LEDs
+        :param pixels: LED array
+        :param colors: Background colors (list of (r, g, b))
+        :param spark_colors: Foreground spark colors (richer whites/yellows/oranges)
+        :param sparkle_density: Fraction of LEDs that sparkle per burst
+        :param fade_steps: Frames to fade back to base
+        :param delay: Delay between frames (sec)
+        :param speed: Animation speed multiplier
+        :param fps_render: Target FPS
+        """
+        super().__init__(pixel_count, pixels, delay, speed, fps_render)
+
+        self.base_colors = colors
+        self.spark_colors = spark_colors or [(255, 255, 255), (255, 242, 32), (255, 170, 0)]
+
+        self.sparkle_density = sparkle_density
+        self.fade_steps = fade_steps
+        self.fade_buffer = [None] * pixel_count  # Each: (r, g, b, step)
+
+        self.pixel_bases = [self.base_colors[i % len(self.base_colors)] for i in range(pixel_count)]
+        self.TAG = "BurstingSparkle"
+        Logger.info(self.TAG, "BurstingSparkle initialized")
+
+    def _update(self):
+        num_to_sparkle = int(self.pixel_count * self.sparkle_density)
+        candidates = random.sample(range(self.pixel_count), num_to_sparkle)
+
+        for i in range(self.pixel_count):
+            base = self.pixel_bases[i]
+
+            if self.fade_buffer[i] is not None:
+                r, g, b, step = self.fade_buffer[i]
+                step += 1
+                if step >= self.fade_steps:
+                    self.fade_buffer[i] = None
+                    self.pixels[i] = base
+                else:
+                    fade_factor = (self.fade_steps - step) / self.fade_steps
+                    blended = (
+                        int(base[0] + (r - base[0]) * fade_factor),
+                        int(base[1] + (g - base[1]) * fade_factor),
+                        int(base[2] + (b - base[2]) * fade_factor),
+                    )
+                    self.pixels[i] = blended
+                    self.fade_buffer[i] = (r, g, b, step)
+
+            elif i in candidates:
+                spark = random.choice(self.spark_colors)
+                self.pixels[i] = spark
+                self.fade_buffer[i] = (*spark, 0)
+
+            else:
+                self.pixels[i] = base
+
+class Fireworks(Animation):
+    def __init__(self, pixel_count, pixels, colors, max_bursts=5, sparks_per_burst=10, fade_steps=10, delay=0.05, speed=1.0, fps_render=60):
+        """
+        Fireworks animation simulating rising and exploding particles.
+
+        :param pixel_count: Number of LEDs
+        :param pixels: LED pixel buffer
+        :param colors: List of (r, g, b) colors for firework explosions
+        :param max_bursts: Max number of fireworks active at once
+        :param fade_rate: How quickly particles fade (0.0 = instant, 1.0 = never)
+        :param delay: Frame delay
+        :param speed: Speed multiplier
+        :param fps_render: Target FPS
+        """
+        super().__init__(pixel_count, pixels, delay, speed, fps_render)
+        self.pixel_count = pixel_count
+        self.pixels = pixels
+        self.colors = colors
+        self.max_bursts = max_bursts
+        self.sparks_per_burst = sparks_per_burst
+        self.fade_steps = fade_steps
+
+        self.bursts = []  # List of active fireworks
+        self.pixel_buffer = [(0, 0, 0)] * pixel_count
+        self.TAG = "Fireworks"
+        Logger.info(self.TAG, "Fireworks animation initialized")
+
+    def _spawn_firework(self):
+        center = random.randint(8, self.pixel_count - 9)  # keep some padding
+        color = random.choice(self.colors)
+        max_offset = random.randint(3, 6)  # how "big" the firework is
+
+        sparks = []
+        for offset in range(-max_offset, max_offset + 1):
+            pos = center + offset
+            if 0 <= pos < self.pixel_count:
+                sparks.append({
+                    "pos": pos,
+                    "color": color,
+                    "step": 0
+                })
+
+        self.bursts.append({
+            "sparks": sparks
+        })
+
+    def _update(self):
+        # Fade pixel buffer
+        for i in range(self.pixel_count):
+            r, g, b = self.pixel_buffer[i]
+            self.pixel_buffer[i] = (
+                int(r * 0.8),
+                int(g * 0.8),
+                int(b * 0.8)
+            )
+
+        # Update sparks
+        new_bursts = []
+        for burst in self.bursts:
+            active_sparks = []
+            for spark in burst["sparks"]:
+                spark["step"] += 1
+                if spark["step"] >= self.fade_steps:
+                    continue
+
+                fade_factor = (self.fade_steps - spark["step"]) / self.fade_steps
+                r = int(spark["color"][0] * fade_factor)
+                g = int(spark["color"][1] * fade_factor)
+                b = int(spark["color"][2] * fade_factor)
+
+                pos = spark["pos"]
+                if 0 <= pos < self.pixel_count:
+                    pr, pg, pb = self.pixel_buffer[pos]
+                    self.pixel_buffer[pos] = (
+                        min(255, pr + r),
+                        min(255, pg + g),
+                        min(255, pb + b)
+                    )
+
+                active_sparks.append(spark)
+
+            if active_sparks:
+                new_bursts.append({"sparks": active_sparks})
+
+        self.bursts = new_bursts
+
+        # Occasionally trigger a new burst
+        if len(self.bursts) < self.max_bursts and random.random() < 0.1:
+            self._spawn_firework()
+
+        # Update actual LED array
+        for i in range(self.pixel_count):
+            self.pixels[i] = self.pixel_buffer[i]
+
 if __name__ == "__main__":
     LED_COUNT  = 400         # Number of LED pixels.
     LED_PIN    = board.D18   # GPIO pin connected to the pixels (18 uses PWM!).
     pixels = neopixel.NeoPixel(LED_PIN, LED_COUNT, pixel_order=neopixel.RGB, auto_write=False, brightness=1.0)
-    animation = RainbowWave(pixels.n, pixels, speed=0.5)
+    colors = [(255, 0, 0), (255, 255, 255), (0, 0, 255)]
+    animation = Fireworks(pixels.n, pixels, colors=colors, speed=1)
     animation.run_animation()
