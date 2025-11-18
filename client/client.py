@@ -2,21 +2,26 @@ import socket
 import json
 from time import sleep
 from enum import Enum
+import subprocess
+import signal
+import os
+
 
 HOST = 'raspberrypi.local'  # Replace with the Raspberry Pi's IP address on the Wi-Fi network
 PORT = 65432          # The port used by the server
 
 CHRISTMAS_PALETTES = {}
 ANIMATION_OPTIONS = {}
-SONG_OPTIONS = {}
 VOLUME_STATE = 100 # initial value
 
+_ffmpeg_proc = None
+
 class CachedId(Enum):
-    SONGS=1
-    VOLUME_STATE=2
-    PALLETES=3
-    ANIMATION_EFFECTS=4
-    NONE=5
+    VOLUME_STATE=1
+    PALLETES=2
+    ANIMATION_EFFECTS=3
+    NONE=4
+
 
 def pick_command():
     """
@@ -28,14 +33,12 @@ def pick_command():
     print("1. Set Light")
     print("2. Pick Effect")
     print("3. Pick Pallette")
-    print("4. Start Music Sync")
-    print("5. Stop Music Sync")
+    print("4. Enable Audio Sync")
+    print("5. Disable Audio Sync")
     print("6. Create and start animation playlist")
     print("7. Stop animation playlist")
-    print("8. Download song from YouTube URL")
-    print("9. Refresh song list")
-    print("10. Set Volume")
-    print("11. Get Volume")
+    print("8. Set Volume")
+    print("9. Get Volume")
     return input("Enter command to send to server (or 'exit' to quit): ")
 
 
@@ -52,6 +55,67 @@ def convert_integer_input(integer: str):
     return int(integer, 16) \
            if integer.startswith("0x") or integer.startswith("0X") \
            else int(integer)
+
+
+def set_audio_output(device_name="BlackHole 2ch"):
+    """
+    Sets the output of the macbook
+    """
+    subprocess.run(["SwitchAudioSource", "-t", "output", "-s", device_name])
+
+
+def start_stream_detached():
+    global _ffmpeg_proc
+    if _ffmpeg_proc and _ffmpeg_proc.poll() is None:
+        print("FFmpeg already running")
+        return
+
+    FFmpeg_CMD = [
+        "ffmpeg",
+        "-f", "avfoundation",
+        "-i", ":BlackHole 2ch",
+        "-ac", "2",
+        "-ar", "44100",
+        "-f", "s16le",
+        "-acodec", "pcm_s16le",
+        "tcp://raspberrypi.local:5005"
+    ]
+
+    # Fully detach from Python process, ignore stdin/stdout/stderr
+    _ffmpeg_proc = subprocess.Popen(
+        FFmpeg_CMD,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        preexec_fn=os.setsid
+    )
+
+    # Give it a moment to fail if the device is busy
+    sleep(1)
+    if _ffmpeg_proc.poll() is not None:
+        print("FFmpeg failed to start. Device may be busy.")
+        _ffmpeg_proc = None
+    else:
+        print("FFmpeg stream started.")
+
+
+def stop_stream():
+    """
+    Stops the running FFmpeg stream safely.
+    """
+    global _ffmpeg_proc
+
+    if not _ffmpeg_proc or _ffmpeg_proc.poll() is not None:
+        print("FFmpeg stream is not running.")
+        return
+
+    print("Stopping FFmpeg stream…")
+
+    # Kill whole process group
+    os.killpg(os.getpgid(_ffmpeg_proc.pid), signal.SIGTERM)
+
+    _ffmpeg_proc = None
+    print("FFmpeg stream stopped.")
 
 
 def send_set_light_command():
@@ -141,53 +205,27 @@ def send_set_pallete_command():
     return json.dumps(json_data), False, CachedId.NONE
 
 
-def send_start_music_sync_command():
-    """
-    Prompts user for music sync info.
-
-    :return: associated JSON-RPC request string
-    """
-    # present animation IDs
-    print()
-    for index, id in enumerate(SONG_OPTIONS.keys()):
-        title = SONG_OPTIONS[id]["title"]
-        artist = SONG_OPTIONS[id]["artist"]
-        print(f"{index + 1}. {title} by {artist}")
-    song_ids = list(SONG_OPTIONS.keys())
-    choice = int(input("Choose a song from list above: "))
-    song = int(song_ids[choice - 1])
-
-    # specify color scheme/palette options
-    print("\nPick the following Color Scheme:")
-    names = list(CHRISTMAS_PALETTES.keys())
-    for index, pallete in enumerate(names):
-        print(f"{index + 1}. {pallete}")
-
-    # specifies an option for pre-loaded color on pi server
-    print(f"{len(CHRISTMAS_PALETTES.keys()) + 1}. Default colors loaded on pi server.")
-
-    scheme_choice = abs(int(input("Choose a scheme from the list above: ")))
-    scheme = CHRISTMAS_PALETTES[names[scheme_choice - 1]] if scheme_choice <= len(names) else []
-
+def _set_is_audio_sync_enabled(is_enabled):
+    """Constructs `is_audio_sync_enabled` command"""
     # fill json data
     json_data = {
-        "method" : "play_song",
+        "method" : "audio_sync_is_enabled",
         "params" : {
-            "song_id" : song,
-            "pallete" : scheme,
+            "is_enabled" : is_enabled
         }
     }
     return json.dumps(json_data), False, CachedId.NONE
 
-def send_stop_music_sync_command():
-    """Constructs `stop_songs` command"""
+def send_enable_audio_sync_command():
+    set_audio_output("BlackHole 2ch")
+    start_stream_detached()
+    return _set_is_audio_sync_enabled(True)
 
-    # fill json data
-    json_data = {
-        "method" : "stop_song",
-        "params" : {}
-    }
-    return json.dumps(json_data), False, CachedId.NONE
+
+def send_disable_audio_sync_command():
+    set_audio_output("MacBook Pro Speakers")
+    stop_stream()
+    return _set_is_audio_sync_enabled(False)
 
 def send_start_animation_playlist_command():
     """Prompts a user to generate and send a playlist of animations"""
@@ -255,22 +293,6 @@ def send_stop_animation_playlist_command():
     return json.dumps(json_data), False, CachedId.NONE
 
 
-def send_download_music_command():
-    url = input("Enter a Youtube URL: ")
-    title = input("Enter the title: ")
-    artist = input("Enter the artist: ")
-
-    json_data = {
-        "method": "download_song",
-        "params" : {
-            "url" : url,
-            "title" : title,
-            "artist" : artist,
-        },
-    }
-    return json.dumps(json_data), False, CachedId.NONE
-
-
 def set_volume():
     global VOLUME_STATE
     print(f"\nVolume is currently = {VOLUME_STATE}%")
@@ -293,15 +315,6 @@ def get_volume():
     return json.dumps(json_data), True, CachedId.VOLUME_STATE
 
 
-def get_songs():
-    """Constructs `get_songs` command"""
-    json_data = {
-        "method" : "get_songs",
-        "params" : {}
-    }
-    return json.dumps(json_data), True, CachedId.SONGS
-
-
 def get_palettes():
     """Constructs `get_palettes` command"""
     json_data = {
@@ -319,7 +332,6 @@ def get_effects():
     }
     return json.dumps(json_data), True, CachedId.ANIMATION_EFFECTS
 
-
 def construct_json(command) -> str:
     """
     Constructs a JSON-RPC request based on the provided command. This
@@ -333,14 +345,12 @@ def construct_json(command) -> str:
         1: send_set_light_command,
         2: send_trigger_effect_command,
         3: send_set_pallete_command,
-        4: send_start_music_sync_command,
-        5: send_stop_music_sync_command,
+        4: send_enable_audio_sync_command,
+        5: send_disable_audio_sync_command,
         6: send_start_animation_playlist_command,
         7: send_stop_animation_playlist_command,
-        8: send_download_music_command,
-        9: get_songs,
-        10: set_volume,
-        11: get_volume,
+        8: set_volume,
+        9: get_volume,
     }
     return commands[command]()
 
@@ -365,7 +375,6 @@ def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         global CHRISTMAS_PALETTES
         global ANIMATION_OPTIONS
-        global SONG_OPTIONS
         global VOLUME_STATE
         s.connect((HOST, PORT))  # Connect to the server
         print(f"Connected to server at {HOST}:{PORT}")
@@ -377,10 +386,6 @@ def main():
         effects_command, _, _ = get_effects()
         s.sendall(effects_command.encode('utf-8'))
         ANIMATION_OPTIONS = recv_all(s)["result"]
-
-        songs_command, _, _ = get_songs()
-        s.sendall(songs_command.encode('utf-8'))
-        SONG_OPTIONS = recv_all(s)["result"]
 
         volume_command, _, _ = get_volume()
         s.sendall(volume_command.encode('utf-8'))
@@ -399,9 +404,7 @@ def main():
 
             if is_getter:
                 result = json_data["result"]
-                if cache_type == CachedId.SONGS:
-                    SONG_OPTIONS = result
-                elif cache_type == CachedId.VOLUME_STATE:
+                if cache_type == CachedId.VOLUME_STATE:
                     VOLUME_STATE = result["volume"]
                     print(f"Volume = {VOLUME_STATE}")
                 elif cache_type == CachedId.PALLETES:
