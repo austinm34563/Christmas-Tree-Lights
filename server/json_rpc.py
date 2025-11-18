@@ -11,6 +11,7 @@ from enum import Enum
 from song_scraper import *
 from color_palettes import COLOR_PALETTES, CHRISTMAS_TREE_PALLETE
 from song_downloader import download_music
+from tcp_audio_sync import AudioVisualReceiver
 
 # json-rpc commnd tags
 METHOD_TAG = "method"
@@ -36,6 +37,7 @@ SONG_TITLE_TAG = "title"
 SONG_ARTIST_TAG = "artist"
 VOLUME_TAG = "volume"
 LED_COUNT_TAG = "led_count"
+IS_ENABLED_TAG = "is_enabled"
 
 # error codes
 PARSE_ERROR = -32700
@@ -74,6 +76,7 @@ class JsonRpc:
             "stop_song" : self._stop_song,
             "start_animation_playlist" : self._start_playlist,
             "stop_animation_playlist" : self._stop_playlist,
+            "audio_sync_is_enabled" : self._set_audio_sync_is_enabled,
             "download_song" : self._download_song,
             "set_volume" : self._set_volume,
             "set_led_count" : self._set_led_count,
@@ -87,6 +90,7 @@ class JsonRpc:
         self.music_sync = None
         self.animation_playlist = None
         self.volume_mixer = Mixer()
+        self.audio_visual_receiver = AudioVisualReceiver(self.light_controller.get_pixels(), DEFAULT_COLOR_PALLETE)
 
     def process_json(self, json_str):
         try:
@@ -156,7 +160,11 @@ class JsonRpc:
             return self._construct_error(INVALID_PARAMS)
 
         self._generic_teardown()
-        self.light_controller.set_color(int(params.get(COLOR_TAG), 16))
+        color = int(params.get(COLOR_TAG), 16)
+        if self.audio_visual_receiver.is_enabled():
+            self.audio_visual_receiver.set_color_palette([color])
+        else:
+            self.light_controller.set_color(color)
         return self._construct_result(True)
 
     def _set_pallete(self, params):
@@ -170,7 +178,10 @@ class JsonRpc:
         color_pallete = params.get(PALLETE_TAG)
         color_pallete = self._validate_color_list(color_pallete, DEFAULT_COLOR_PALLETE)
 
-        self.light_controller.set_color_pallete(color_pallete)
+        if self.audio_visual_receiver.is_enabled():
+            self.audio_visual_receiver.set_color_palette(color_pallete)
+        else:
+            self.light_controller.set_color_pallete(color_pallete)
         return self._construct_result(True)
 
     def _trigger_effect(self, params):
@@ -285,6 +296,14 @@ class JsonRpc:
         # now that is stopped display a default palette
         self.light_controller.set_color_pallete(CHRISTMAS_TREE_PALLETE)
 
+        return self._construct_result(True)
+
+    def _set_audio_sync_is_enabled(self, params):
+        is_enabled = params.get(IS_ENABLED_TAG)
+        if is_enabled is None:
+            Logger.error(TAG, "No audio sync enablement flag provided")
+            return self._construct_error(INVALID_PARAMS)
+        self.audio_visual_receiver.set_visualization_enabled(is_enabled)
         return self._construct_result(True)
 
     def _download_song(self, params):

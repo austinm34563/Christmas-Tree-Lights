@@ -177,10 +177,6 @@ WICKED = [
 ]
 
 COLOR_PALETTES = {
-    "American Palette": AMERICA,
-    "Classic Fireworks": CLASSIC_FIREWORKS,
-    "Festival Multicolor Fireworks": FESTIVAL,
-    "Wicked": WICKED,
     "Christmas Tree Palette": CHRISTMAS_TREE_PALLETE,
     "Christmas Snow": CHRISTMAS_SNOW,
     "Generic Christmas": GENERIC_CHRISTMAS,
@@ -196,5 +192,9 @@ COLOR_PALETTES = {
     "Candle Colors": CANDLE_COLORS,
     "Red Green White Colors": RED_GREEN_WHITE,
     "Blue and White": BLUE_WHITE,
-    "Blue": BLUE
+    "Blue": BLUE,
+    "American Palette": AMERICA,
+    "Classic Fireworks": CLASSIC_FIREWORKS,
+    "Festival Multicolor Fireworks": FESTIVAL,
+    "Wicked": WICKED
 }

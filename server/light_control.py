@@ -7,7 +7,7 @@ import time
 TAG = "LightControl"
 
 # LED strip configuration:
-LED_COUNT  = 400          # Number of LED pixels.
+LED_COUNT  = 50         # Number of LED pixels.
 LED_PIN    = board.D18   # GPIO pin connected to the pixels (18 uses PWM!).
 
 class LightControl:
