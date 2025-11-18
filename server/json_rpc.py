@@ -5,12 +5,9 @@ from logger import Logger
 from light_control import LightControl
 from animation_constants import *
 from animation import *
-from music_sync import MusicSync
 from animation_playlist import AnimationPlaylist
 from enum import Enum
-from song_scraper import *
 from color_palettes import COLOR_PALETTES, CHRISTMAS_TREE_PALLETE
-from song_downloader import download_music
 from tcp_audio_sync import AudioVisualReceiver
 
 # json-rpc commnd tags
@@ -27,14 +24,10 @@ PALLETE_TAG = "pallete"
 SPEED_TAG = "speed"
 COLOR_SCHEME_TAG = "color_scheme"
 ANIMATION_EFFECT_ID_TAG = "animation_id"
-SONG_ID_TAG = "song_id"
-SONG_FILE_TAG = "file"
 ANIMATIONS_TAG = "animations"
 COLOR_SCHEMES_TAG = "color_schemes"
 PLAYLIST_TIME_DELAY_TAG = "time_delay"
 URL_TAG = "url"
-SONG_TITLE_TAG = "title"
-SONG_ARTIST_TAG = "artist"
 VOLUME_TAG = "volume"
 LED_COUNT_TAG = "led_count"
 IS_ENABLED_TAG = "is_enabled"
@@ -72,22 +65,17 @@ class JsonRpc:
             "set_light" : self._set_light,
             "set_pallete" : self._set_pallete,
             "trigger_effect" : self._trigger_effect,
-            "play_song" : self._play_song,
-            "stop_song" : self._stop_song,
             "start_animation_playlist" : self._start_playlist,
             "stop_animation_playlist" : self._stop_playlist,
             "audio_sync_is_enabled" : self._set_audio_sync_is_enabled,
-            "download_song" : self._download_song,
             "set_volume" : self._set_volume,
             "set_led_count" : self._set_led_count,
             "get_volume" : self._get_volume,
             "get_palettes" : self._get_palletes,
-            "get_songs" : self._get_songs,
             "get_effects" : self._get_effects,
         }
         self.light_controller = LightControl()
         self.animation_controller = None
-        self.music_sync = None
         self.animation_playlist = None
         self.volume_mixer = Mixer()
         self.audio_visual_receiver = AudioVisualReceiver(self.light_controller.get_pixels(), DEFAULT_COLOR_PALLETE)
@@ -225,32 +213,6 @@ class JsonRpc:
         self.animation_controller.run_animation()
         return self._construct_result(True)
 
-    def _play_song(self, params):
-        song_id = params.get(SONG_ID_TAG)
-        if song_id is None:
-            Logger.error(TAG, "Song not provided")
-            return self._construct_error(INVALID_PARAMS)
-
-        color_pallete = self._validate_color_list(params.get(PALLETE_TAG), DEFAULT_COLOR_PALLETE)
-
-        # convert to list of tuples if values are integers
-        color_pallete = self._convert_hex_to_colors(color_pallete)
-
-        self._generic_teardown()
-
-        pixels = self.light_controller.get_pixels()
-        self.music_sync = MusicSync(pixels, get_mp3_metadata()[song_id][SONG_FILE_TAG], color_pallete)
-        result = self.music_sync.start_sync()
-        return self._construct_result(result)
-
-    def _stop_song(self, params):
-        if self.music_sync is None:
-            return self._construct_error(MUSIC_NOT_PLAYING_ERROR)
-
-        self.music_sync.stop_sync()
-        self.music_sync = None
-        return self._construct_result(True)
-
     def _start_playlist(self, params):
         animations_id = params.get(ANIMATIONS_TAG)
         if animations_id is None:
@@ -306,17 +268,6 @@ class JsonRpc:
         self.audio_visual_receiver.set_visualization_enabled(is_enabled)
         return self._construct_result(True)
 
-    def _download_song(self, params):
-        url = params.get(URL_TAG)
-        title = params.get(SONG_TITLE_TAG)
-        song = params.get(SONG_ARTIST_TAG)
-        if url is None or title is None or song is None:
-            Logger.error(TAG, "Invalid params")
-            return self._construct_error(INVALID_PARAMS)
-
-        download_music(url, title, song)
-        return self._construct_result(True)
-
     def _set_volume(self, params):
         volume_percentage = params.get(VOLUME_TAG)
         if volume_percentage is None:
@@ -342,9 +293,6 @@ class JsonRpc:
         }
         return self._construct_result(volume_result)
 
-    def _get_songs(self, params):
-        return self._construct_result(get_mp3_metadata())
-
     def _get_palletes(self, params):
         return self._construct_result(COLOR_PALETTES)
 
@@ -355,10 +303,6 @@ class JsonRpc:
         if self.animation_controller is not None:
             self.animation_controller.stop_animation()
             self.animation_controller = None
-
-        if self.music_sync is not None:
-            self.music_sync.stop_sync()
-            self.music_sync = None
 
         if self.animation_playlist is not None:
             self.animation_playlist.stop_playlist()
