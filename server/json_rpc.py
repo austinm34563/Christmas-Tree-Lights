@@ -73,6 +73,7 @@ class JsonRpc:
             "get_volume" : self._get_volume,
             "get_palettes" : self._get_palletes,
             "get_effects" : self._get_effects,
+            "get_audio_sync_state": self._get_audio_sync_state,
         }
         self.light_controller = LightControl()
         self.animation_controller = None
@@ -298,6 +299,9 @@ class JsonRpc:
 
     def _get_effects(self, params):
         return self._construct_result(ANIMATIONS)
+
+    def _get_audio_sync_state(self, params):
+        return self._construct_result(self.audio_visual_receiver.is_enabled())
 
     def _generic_teardown(self):
         if self.animation_controller is not None:
