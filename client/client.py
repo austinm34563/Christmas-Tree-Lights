@@ -14,6 +14,9 @@ CHRISTMAS_PALETTES = {}
 ANIMATION_OPTIONS = {}
 VOLUME_STATE = 100 # initial value
 
+AUDIO_STREAM_CHANNEL = "BlackHole 2ch"
+MACBOOK_MAIN_SPEAKERS = "MacBook Pro Speakers"
+
 _ffmpeg_proc = None
 
 class CachedId(Enum):
@@ -57,14 +60,14 @@ def convert_integer_input(integer: str):
            else int(integer)
 
 
-def set_audio_output(device_name="BlackHole 2ch"):
+def set_audio_output(device_name=AUDIO_STREAM_CHANNEL):
     """
     Sets the output of the macbook
     """
     subprocess.run(["SwitchAudioSource", "-t", "output", "-s", device_name])
 
 
-def start_stream_detached():
+def start_stream_detached(device_name=AUDIO_STREAM_CHANNEL):
     global _ffmpeg_proc
     if _ffmpeg_proc and _ffmpeg_proc.poll() is None:
         print("FFmpeg already running")
@@ -73,7 +76,7 @@ def start_stream_detached():
     FFmpeg_CMD = [
         "ffmpeg",
         "-f", "avfoundation",
-        "-i", ":BlackHole 2ch",
+        "-i", f":{device_name}",
         "-ac", "2",
         "-ar", "44100",
         "-f", "s16le",
@@ -217,13 +220,13 @@ def _set_is_audio_sync_enabled(is_enabled):
     return json.dumps(json_data), False, CachedId.NONE
 
 def send_enable_audio_sync_command():
-    set_audio_output("BlackHole 2ch")
-    start_stream_detached()
+    set_audio_output(AUDIO_STREAM_CHANNEL)
+    start_stream_detached(AUDIO_STREAM_CHANNEL)
     return _set_is_audio_sync_enabled(True)
 
 
 def send_disable_audio_sync_command():
-    set_audio_output("MacBook Pro Speakers")
+    set_audio_output(MACBOOK_MAIN_SPEAKERS)
     stop_stream()
     return _set_is_audio_sync_enabled(False)
 
