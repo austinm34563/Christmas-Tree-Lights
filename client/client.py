@@ -42,6 +42,8 @@ def pick_command():
     print("7. Stop animation playlist")
     print("8. Set Volume")
     print("9. Get Volume")
+    print("10. Add a custom palette")
+    print("11. Remove a custom palette")
     return input("Enter command to send to server (or 'exit' to quit): ")
 
 
@@ -135,7 +137,7 @@ def send_set_light_command():
             "color" : str(hex(color))
         }
     }
-    return json.dumps(json_data), False, CachedId.NONE
+    return json.dumps(json_data), False, CachedId.NONE, False
 
 
 
@@ -181,7 +183,7 @@ def send_trigger_effect_command():
             "speed" : speed
         }
     }
-    return json.dumps(json_data), False, CachedId.NONE
+    return json.dumps(json_data), False, CachedId.NONE, False
 
 
 def send_set_pallete_command():
@@ -205,7 +207,7 @@ def send_set_pallete_command():
             "pallete" : CHRISTMAS_PALETTES[names[pallete_choice - 1]]
         }
     }
-    return json.dumps(json_data), False, CachedId.NONE
+    return json.dumps(json_data), False, CachedId.NONE, False
 
 
 def _set_is_audio_sync_enabled(is_enabled):
@@ -217,7 +219,7 @@ def _set_is_audio_sync_enabled(is_enabled):
             "is_enabled" : is_enabled
         }
     }
-    return json.dumps(json_data), False, CachedId.NONE
+    return json.dumps(json_data), False, CachedId.NONE, False
 
 def send_enable_audio_sync_command():
     set_audio_output(AUDIO_STREAM_CHANNEL)
@@ -285,7 +287,7 @@ def send_start_animation_playlist_command():
             "time_delay" : time_delay
         }
     }
-    return json.dumps(json_data), False, CachedId.NONE
+    return json.dumps(json_data), False, CachedId.NONE, False
 
 
 def send_stop_animation_playlist_command():
@@ -293,7 +295,7 @@ def send_stop_animation_playlist_command():
         "method" : "stop_animation_playlist",
         "params" : {},
     }
-    return json.dumps(json_data), False, CachedId.NONE
+    return json.dumps(json_data), False, CachedId.NONE, False
 
 
 def set_volume():
@@ -307,7 +309,7 @@ def set_volume():
         },
     }
     VOLUME_STATE = volume
-    return json.dumps(json_data), False, CachedId.NONE
+    return json.dumps(json_data), False, CachedId.NONE, False
 
 
 def get_volume():
@@ -315,8 +317,39 @@ def get_volume():
         "method" : "get_volume",
         "params" : {},
     }
-    return json.dumps(json_data), True, CachedId.VOLUME_STATE
+    return json.dumps(json_data), True, CachedId.VOLUME_STATE, False
 
+
+def send_add_palette_command():
+    palette_name = input("Give the new palette name: ")
+    colors = []
+    while True:
+        color = input("Enter a color (enter N/n to stop): ")
+        if color.lower() == "n":
+            break
+        colors.append(convert_integer_input(color))
+    json_data = {
+        "method" : "add_palette",
+        "params" : {
+            "pallete" : palette_name,
+            "palette_colors": colors,
+        }
+    }
+    return json.dumps(json_data), False, CachedId.NONE, True
+
+def send_remove_palette_command():
+    print("Pick a palette to remove:")
+    names = list(CHRISTMAS_PALETTES.keys())
+    for index, pallete in enumerate(names):
+        print(f"{index + 1}. {pallete}")
+    pallete_choice = int(input("Choose a pallete from the list above: "))
+    json_data = {
+        "method" : "remove_palette",
+        "params" : {
+            "pallete" : names[pallete_choice - 1]
+        }
+    }
+    return json.dumps(json_data), False, CachedId.NONE, True
 
 def get_palettes():
     """Constructs `get_palettes` command"""
@@ -324,7 +357,7 @@ def get_palettes():
         "method" : "get_palettes",
         "params" : {}
     }
-    return json.dumps(json_data), True, CachedId.PALLETES
+    return json.dumps(json_data), True, CachedId.PALLETES, False
 
 
 def get_effects():
@@ -333,9 +366,9 @@ def get_effects():
         "method" : "get_effects",
         "params" : {}
     }
-    return json.dumps(json_data), True, CachedId.ANIMATION_EFFECTS
+    return json.dumps(json_data), True, CachedId.ANIMATION_EFFECTS, False
 
-def construct_json(command) -> str:
+def construct_json(command):
     """
     Constructs a JSON-RPC request based on the provided command. This
     will call an associated method that returns the associated JSON-RPC
@@ -354,6 +387,8 @@ def construct_json(command) -> str:
         7: send_stop_animation_playlist_command,
         8: set_volume,
         9: get_volume,
+        10: send_add_palette_command,
+        11: send_remove_palette_command,
     }
     return commands[command]()
 
@@ -382,15 +417,15 @@ def main():
         s.connect((HOST, PORT))  # Connect to the server
         print(f"Connected to server at {HOST}:{PORT}")
 
-        palette_command, _, _ = get_palettes()
+        palette_command, _, _, _ = get_palettes()
         s.sendall(palette_command.encode('utf-8'))
         CHRISTMAS_PALETTES = recv_all(s)["result"]
 
-        effects_command, _, _ = get_effects()
+        effects_command, _, _, _ = get_effects()
         s.sendall(effects_command.encode('utf-8'))
         ANIMATION_OPTIONS = recv_all(s)["result"]
 
-        volume_command, _, _ = get_volume()
+        volume_command, _, _, _ = get_volume()
         s.sendall(volume_command.encode('utf-8'))
         VOLUME_STATE = recv_all(s)["result"]["volume"]
 
@@ -401,7 +436,7 @@ def main():
                 break
 
             # Send the command to the server
-            json_command, is_getter, cache_type = construct_json(int(command))
+            json_command, is_getter, cache_type, refresh_data = construct_json(int(command))
             s.sendall(json_command.encode('utf-8'))
             json_data = recv_all(s)
 
@@ -417,6 +452,19 @@ def main():
                 print(f"Succesfully received data from server")
             else:
                 print(f"Received from server:\n{json.dumps(json_data, indent=4)}")
+
+            if refresh_data:
+                palette_command, _, _, _ = get_palettes()
+                s.sendall(palette_command.encode('utf-8'))
+                CHRISTMAS_PALETTES = recv_all(s)["result"]
+
+                effects_command, _, _, _ = get_effects()
+                s.sendall(effects_command.encode('utf-8'))
+                ANIMATION_OPTIONS = recv_all(s)["result"]
+
+                volume_command, _, _, _ = get_volume()
+                s.sendall(volume_command.encode('utf-8'))
+                VOLUME_STATE = recv_all(s)["result"]["volume"]
 
 if __name__ == "__main__":
     main()
