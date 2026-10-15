@@ -7,7 +7,7 @@ from animation_constants import *
 from animation import *
 from animation_playlist import AnimationPlaylist
 from enum import Enum
-from color_palettes import COLOR_PALETTES, CHRISTMAS_TREE_PALLETE
+from color_palette_manager import ColorPaletteManager, ColorPaletteReturnStatus
 from tcp_audio_sync import AudioVisualReceiver
 
 # json-rpc commnd tags
@@ -21,6 +21,7 @@ ERROR_CODE_TAG = "code"
 # params tags
 COLOR_TAG = "color"
 PALLETE_TAG = "pallete"
+PALETTE_COLORS_TAG = "palette_colors"
 SPEED_TAG = "speed"
 COLOR_SCHEME_TAG = "color_scheme"
 ANIMATION_EFFECT_ID_TAG = "animation_id"
@@ -39,6 +40,8 @@ METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 MUSIC_NOT_PLAYING_ERROR = -32000
 ANIMATION_PLAYLIST_NOT_PLAYING_ERROR = -32001
+MODIFY_DEFAULT_PALETTE_ERROR = -32002
+UNKNOWN_ERROR = -32003
 
 # error messages
 ERRROR_MESSAGES = {
@@ -47,7 +50,8 @@ ERRROR_MESSAGES = {
     METHOD_NOT_FOUND : "Method not found",
     INVALID_PARAMS : "Invalid params",
     MUSIC_NOT_PLAYING_ERROR : "No music is currently playing",
-    ANIMATION_PLAYLIST_NOT_PLAYING_ERROR : "No animation playlist is currently playing"
+    ANIMATION_PLAYLIST_NOT_PLAYING_ERROR : "No animation playlist is currently playing",
+    MODIFY_DEFAULT_PALETTE_ERROR : "Cannot modify a default palette",
 }
 
 VALID_TAGS = [METHOD_TAG, PARAMS_TAG]
@@ -74,12 +78,15 @@ class JsonRpc:
             "get_palettes" : self._get_palletes,
             "get_effects" : self._get_effects,
             "get_audio_sync_state": self._get_audio_sync_state,
+            "add_palette": self._add_color_palette,
+            "remove_palette": self._remove_color_palette,
         }
         self.light_controller = LightControl()
         self.animation_controller = None
         self.animation_playlist = None
         self.volume_mixer = Mixer()
         self.audio_visual_receiver = AudioVisualReceiver(self.light_controller.get_pixels(), DEFAULT_COLOR_PALLETE)
+        self.color_palette_manager = ColorPaletteManager()
 
     def process_json(self, json_str):
         try:
@@ -201,8 +208,8 @@ class JsonRpc:
         speed = params.get(SPEED_TAG, 1)
 
         # Instantiate the appropriate animation class
-        if effect_id in effect_classes:
-            self.animation_controller = effect_classes[effect_id](pixel_count, pixels, color_scheme, speed=speed)
+        if effect_id in EFFECTS:
+            self.animation_controller = EFFECTS[effect_id](pixel_count, pixels, color_scheme, speed=speed)
         else:
             Logger.error(TAG, "No associated animation")
             return self._construct_error(INVALID_PARAMS)
@@ -257,7 +264,7 @@ class JsonRpc:
         self.animation_playlist = None
 
         # now that is stopped display a default palette
-        self.light_controller.set_color_pallete(CHRISTMAS_TREE_PALLETE)
+        self.light_controller.set_color_pallete(DEFAULT_COLOR_PALLETE)
 
         return self._construct_result(True)
 
@@ -266,8 +273,44 @@ class JsonRpc:
         if is_enabled is None:
             Logger.error(TAG, "No audio sync enablement flag provided")
             return self._construct_error(INVALID_PARAMS)
+        self._generic_teardown()
         self.audio_visual_receiver.set_visualization_enabled(is_enabled)
         return self._construct_result(True)
+
+    def _add_color_palette(self, params):
+        palette_name = params.get(PALLETE_TAG)
+        if palette_name is None:
+            Logger.error(TAG, "No palette name provided")
+            return self._construct_error(INVALID_PARAMS)
+
+        palette_colors = params.get(PALETTE_COLORS_TAG)
+        if palette_colors is None:
+            Logger.error(TAG, "Palette colors not provided")
+            return self._construct_error(INVALID_PARAMS)
+
+        err = self.color_palette_manager.add(palette_name, palette_colors)
+        match err:
+            case ColorPaletteReturnStatus.OK:
+                return self._construct_result(True)
+            case ColorPaletteReturnStatus.MODIFIED_DEFAULT_ERR:
+                return self._construct_error(MODIFY_DEFAULT_PALETTE_ERROR)
+            case _:
+                return self._construct_result(UNKNOWN_ERROR)
+
+    def _remove_color_palette(self, params):
+        palette_name = params.get(PALLETE_TAG)
+        if palette_name is None:
+            Logger.error(TAG, "No palette name provided")
+            return self._construct_error(INVALID_PARAMS)
+
+        err = self.color_palette_manager.remove(palette_name)
+        match err:
+            case ColorPaletteReturnStatus.OK:
+                return self._construct_result(True)
+            case ColorPaletteReturnStatus.MODIFIED_DEFAULT_ERR:
+                return self._construct_error(MODIFY_DEFAULT_PALETTE_ERROR)
+            case _:
+                return self._construct_result(UNKNOWN_ERROR)
 
     def _set_volume(self, params):
         volume_percentage = params.get(VOLUME_TAG)
@@ -295,7 +338,7 @@ class JsonRpc:
         return self._construct_result(volume_result)
 
     def _get_palletes(self, params):
-        return self._construct_result(COLOR_PALETTES)
+        return self._construct_result(self.color_palette_manager.get_color_palettes())
 
     def _get_effects(self, params):
         return self._construct_result(ANIMATIONS)

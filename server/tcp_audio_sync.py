@@ -18,6 +18,7 @@ VIS_CHUNK_SIZE = 1024
 
 MIN_FREQ = 30
 MAX_FREQ = 20000
+# MAX_FREQ = 7902
 
 
 class AudioVisualReceiver:
@@ -29,6 +30,7 @@ class AudioVisualReceiver:
 
         # Networking
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind(("0.0.0.0", PI_PORT))
         self.sock.listen(1)
 
@@ -291,6 +293,7 @@ class AudioVisualReceiver:
             c = palette[i % len(palette)]
             colors.append((int(c[0]*b), int(c[1]*b), int(c[2]*b)))
 
+        # return colors[::-1]
         return colors
 
 

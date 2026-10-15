@@ -83,7 +83,7 @@ ANIMATIONS = {
 }
 
 # Map effects to their corresponding classes
-effect_classes = {
+EFFECTS = {
     AnimationId.CycleFade.value: CycleFade,
     AnimationId.Fade.value: Fade,
     AnimationId.Blink.value: Blink,
