@@ -29,31 +29,30 @@ class Logger:
             Logger._is_configured = True
 
     @staticmethod
+    def _tag_message(tag, message):
+        return f"[{tag}] {message}"
+
+    @staticmethod
     def debug(tag, message):
         Logger._configure_logger()
-        tagged_message = f"[{tag}] {message}"
-        Logger._logger.debug(tagged_message)
+        Logger._logger.debug(Logger._tag_message(tag, message))
 
     @staticmethod
     def info(tag, message):
         Logger._configure_logger()
-        tagged_message = f"[{tag}] {message}"
-        Logger._logger.info(tagged_message)
+        Logger._logger.info(Logger._tag_message(tag, message))
 
     @staticmethod
     def warning(tag, message):
         Logger._configure_logger()
-        tagged_message = f"[{tag}] {message}"
-        Logger._logger.warning(tagged_message)
+        Logger._logger.warning(Logger._tag_message(tag, message))
 
     @staticmethod
     def error(tag, message):
         Logger._configure_logger()
-        tagged_message = f"[{tag}] {message}"
-        Logger._logger.error(tagged_message)
+        Logger._logger.error(Logger._tag_message(tag, message))
 
     @staticmethod
     def critical(tag, message):
         Logger._configure_logger()
-        tagged_message = f"[{tag}] {message}"
-        Logger._logger.critical(tagged_message)
+        Logger._logger.critical(Logger._tag_message(tag, message))

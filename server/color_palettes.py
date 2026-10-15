@@ -1,5 +1,4 @@
 
-
 # Default Christmas tree palette
 CHRISTMAS_TREE_PALLETE = [
     0x1E7C20,
@@ -137,11 +136,6 @@ BLUE_WHITE = [
     0xFFFFFF,
 ]
 
-# Blue
-BLUE = [
-    0x0000FF,
-]
-
 # America
 AMERICA = [
     0xFF0000,
@@ -176,25 +170,143 @@ WICKED = [
     0xFF0080, # Neon Pink
 ]
 
-COLOR_PALETTES = {
-    "Christmas Tree Palette": CHRISTMAS_TREE_PALLETE,
-    "Christmas Snow": CHRISTMAS_SNOW,
-    "Generic Christmas": GENERIC_CHRISTMAS,
-    "Christmas Palette Traditional": CHRISTMAS_PALETTE_TRADITIONAL,
-    "Christmas Palette Winter": CHRISTMAS_PALETTE_WINTER,
-    "Christmas Palette Cozy": CHRISTMAS_PALETTE_COZY,
-    "Christmas Palette Classic": CHRISTMAS_PALETTE_CLASSIC,
-    "Christmas Palette Elegant": CHRISTMAS_PALETTE_ELEGANT,
-    "Christmas Palette Elegant II": CHRISTMAS_PALETTE_ELEGANT_II,
-    "Hawaiian Christmas": HAWAIIAN_CHRISTMAS_TREE_PALETTE,
-    "Brat Palette": BRAT_PALETTE,
-    "Spiderman Palette": SPIDERMAN_PALETTE,
+# Classic Halloween
+HALLOWEEN_CLASSIC = [
+    0xFF6600,  # Pumpkin Orange
+    0x800080,  # Purple
+    0x39FF14,  # Neon Green
+    0xFFFFFF   # Ghost White
+]
+
+# Traditional Orange and Purple
+HALLOWEEN_ORANGE_PURPLE = [
+    0xFF6600,  # Orange
+    0xFF6600,  # Orange
+    0x8200C4,  # Purple
+    0x8200C4,  # Purple
+    0xFFFFFF   # White Accent
+]
+
+# Spooky Green and Purple
+HALLOWEEN_SPOOKY = [
+    0x39FF14,  # Toxic Neon Green
+    0x8000FF,  # Electric Purple
+    0x4B0082,  # Indigo
+    0x00FF66,  # Ghostly Green
+    0xFF6600   # Orange Accent
+]
+
+# Blood Moon
+HALLOWEEN_BLOOD_MOON = [
+    0x4A0000,  # Deep Blood Red
+    0x8B0000,  # Dark Red
+    0xFF0000,  # Bright Red
+    0xFF4500,  # Blood Orange
+]
+
+
+# Pumpkin Patch
+HALLOWEEN_PUMPKIN = [
+    0xFF4500,  # Pumpkin Orange
+    0xFF7518,  # Pumpkin Glow
+    0xFFB000,  # Golden Yellow
+    0x228B22,  # Pumpkin Stem Green
+    0x401000   # Dark Brown
+]
+
+# Haunted House
+HALLOWEEN_HAUNTED_HOUSE = [
+    0x190033,  # Midnight Purple
+    0x301050,  # Haunted Violet
+    0x006B3C,  # Eerie Green
+    0xFF6600,  # Candle Orange
+    0xB8B8C8   # Ghostly Silver
+]
+
+# Witch's Brew
+HALLOWEEN_WITCHES_BREW = [
+    0x7FFF00,  # Cauldron Lime
+    0x9400D3,  # Dark Violet
+    0x00FF99,  # Toxic Mint
+    0x191970,  # Midnight Blue
+]
+
+# Ghostly White and Blue
+HALLOWEEN_GHOST = [
+    0xFFFFFF,  # Ghost White
+    0xDDEEFF,  # Icy Blue-White
+    0xA8C8FF,  # Ghostly Blue
+    0x7777AA,  # Spectral Lavender
+    0x202040   # Midnight Blue
+]
+
+# Candy Corn
+HALLOWEEN_CANDY_CORN = [
+    0xFFFFFF,  # White
+    0xFFF000,  # Candy Corn Yellow
+    0xFF9900,  # Orange
+    0xFF6600,  # Deep Orange
+    0xFFFFFF   # White
+]
+
+# Vintage Halloween
+HALLOWEEN_VINTAGE = [
+    0xD96C27,  # Muted Pumpkin Orange
+    0x5B2C83,  # Vintage Purple
+    0x263A29,  # Dark Forest Green
+    0xD8C7A3,  # Aged Parchment
+    0x2A211C   # Dark Brown
+]
+
+# Neon Halloween Party
+HALLOWEEN_NEON = [
+    0xFF6600,  # Neon Orange
+    0xB000FF,  # Electric Purple
+    0x39FF14,  # Neon Green
+    0xFF1493,  # Hot Pink
+    0x00D9FF   # Electric Cyan
+]
+
+# Orange and Black
+HALLOWEEN_ORANGE_BLACK = [
+    0xFF6600,  # Halloween Orange
+    0xFF8C00,  # Dark Orange
+    0xFFFFFF   # White Accent
+]
+
+DEFAULT_COLOR_PALETTES = {
+    # Christmas palettes (disabled for the Halloween season)
+    # "Christmas Tree Palette": CHRISTMAS_TREE_PALLETE,
+    # "Christmas Snow": CHRISTMAS_SNOW,
+    # "Generic Christmas": GENERIC_CHRISTMAS,
+    # "Christmas Palette Traditional": CHRISTMAS_PALETTE_TRADITIONAL,
+    # "Christmas Palette Winter": CHRISTMAS_PALETTE_WINTER,
+    # "Christmas Palette Cozy": CHRISTMAS_PALETTE_COZY,
+    # "Christmas Palette Classic": CHRISTMAS_PALETTE_CLASSIC,
+    # "Christmas Palette Elegant": CHRISTMAS_PALETTE_ELEGANT,
+    # "Christmas Palette Elegant II": CHRISTMAS_PALETTE_ELEGANT_II,
+    # "Hawaiian Christmas": HAWAIIAN_CHRISTMAS_TREE_PALETTE,
+    # "Brat Palette": BRAT_PALETTE,
+    # "Spiderman Palette": SPIDERMAN_PALETTE,
+    # "Red Green White Colors": RED_GREEN_WHITE,
+    # "Blue and White": BLUE_WHITE,
+    # "American Palette": AMERICA,
+    # "Classic Fireworks": CLASSIC_FIREWORKS,
+    # "Festival Multicolor Fireworks": FESTIVAL,
+    # "Wicked": WICKED,
+
+    # Halloween palettes
+    "Halloween Classic": HALLOWEEN_CLASSIC,
+    "Halloween Orange Purple": HALLOWEEN_ORANGE_PURPLE,
+    "Halloween Spooky": HALLOWEEN_SPOOKY,
+    "Halloween Blood Moon": HALLOWEEN_BLOOD_MOON,
+    "Halloween Pumpkin": HALLOWEEN_PUMPKIN,
+    "Halloween Haunted House": HALLOWEEN_HAUNTED_HOUSE,
+    "Halloween Witches Brew": HALLOWEEN_WITCHES_BREW,
+    "Halloween Ghost": HALLOWEEN_GHOST,
+    "Halloween Candy Corn": HALLOWEEN_CANDY_CORN,
+    "Halloween Vintage": HALLOWEEN_VINTAGE,
+    "Halloween Neon": HALLOWEEN_NEON,
+    "Halloween Orange Black": HALLOWEEN_ORANGE_BLACK,
     "Candle Colors": CANDLE_COLORS,
-    "Red Green White Colors": RED_GREEN_WHITE,
-    "Blue and White": BLUE_WHITE,
-    "Blue": BLUE,
-    "American Palette": AMERICA,
-    "Classic Fireworks": CLASSIC_FIREWORKS,
-    "Festival Multicolor Fireworks": FESTIVAL,
-    "Wicked": WICKED
 }

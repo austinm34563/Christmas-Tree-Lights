@@ -1,7 +1,7 @@
 
 import threading
 from animation_constants import *
-import random
+from random import randrange
 
 class AnimationPlaylist:
     def __init__(self, pixels, animations, color_schemes, speeds, time_delay=60):
@@ -45,11 +45,11 @@ class AnimationPlaylist:
                     self.current_animation.stop_animation()
 
                 # Pick a random color scheme
-                color_scheme_index = random.randrange(len(self.color_schemes))
+                color_scheme_index = randrange(len(self.color_schemes))
                 if self.current_color_index is not None and self.current_color_index == color_scheme_index:
                     color_scheme_index = (color_scheme_index + 1) % len(self.color_schemes)
                 self.current_color_index = color_scheme_index
-                self.current_animation = effect_classes[animation](
+                self.current_animation = EFFECTS[animation](
                     self.pixel_count,
                     self.pixels,
                     colors=self.color_schemes[color_scheme_index],
