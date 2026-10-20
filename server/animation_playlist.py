@@ -2,26 +2,32 @@
 import threading
 from animation_constants import *
 from random import randrange
+from dataclasses import dataclass
+
+from color_palette_manager import ColorPaletteManager
+
+@dataclass
+class AnimationPlaylistData:
+    animation_names: list[str]
+    color_scheme_names: list[str]
+    speeds: list[int]
 
 class AnimationPlaylist:
-    def __init__(self, pixels, animations, color_schemes, speeds, time_delay=60):
+    def __init__(self, pixels, playlist, time_delay=60):
         self.pixels = pixels
         self.pixel_count = pixels.n
-        self.animations = animations
-        self.color_schemes = color_schemes
-        self.speeds = speeds
+        self.playlist = playlist
         self.time_delay = time_delay
         self.thread = None
-        self.shuffle = False
         self._stop_event = threading.Event()
         self.current_animation = None
         self.current_color_index = None
+        self.palette_manager = ColorPaletteManager()
 
         self.TAG = "Animation Playlist"
 
-    def start_playlist(self, shuffle=False):
+    def start_playlist(self):
         Logger.info(self.TAG, "Starting Playlist")
-        self.shuffle = shuffle
         if self.thread is None or not self._thread.is_alive():
             self._stop_event.clear()
             self.thread = threading.Thread(target=self._playlist_loop, daemon=True)
@@ -36,7 +42,7 @@ class AnimationPlaylist:
 
     def _playlist_loop(self):
         while not self._stop_event.is_set():
-            for animation_index, animation in enumerate(self.animations):
+            for animation_index, animation_name in enumerate(self.playlist.animation_names):
                 if self._stop_event.is_set():
                     break
 
@@ -45,15 +51,20 @@ class AnimationPlaylist:
                     self.current_animation.stop_animation()
 
                 # Pick a random color scheme
-                color_scheme_index = randrange(len(self.color_schemes))
+                color_scheme_index = randrange(len(self.playlist.color_scheme_names))
                 if self.current_color_index is not None and self.current_color_index == color_scheme_index:
-                    color_scheme_index = (color_scheme_index + 1) % len(self.color_schemes)
+                    color_scheme_index = (color_scheme_index + 1) % len(self.playlist.color_scheme_names)
                 self.current_color_index = color_scheme_index
-                self.current_animation = EFFECTS[animation](
+                color_palette_name = self.playlist.color_scheme_names[color_scheme_index]
+                color_scheme = self.palette_manager.get_color_palettes().get(color_palette_name)
+
+                # pick the animation corresponding to the name
+                animation_id = ANIMATIONS[animation_name]["id"]
+                self.current_animation = EFFECTS[animation_id](
                     self.pixel_count,
                     self.pixels,
-                    colors=self.color_schemes[color_scheme_index],
-                    speed=self.speeds[animation_index],
+                    colors=color_scheme,
+                    speed=self.playlist.speeds[animation_index],
                     fps_render=30
                 )
 
@@ -68,24 +79,3 @@ class AnimationPlaylist:
         # Ensure the last animation is stopped
         if self.current_animation:
             self.current_animation.stop_animation()
-
-
-
-from color_palettes import *
-
-if __name__ == "__main__":
-    LED_COUNT  = 400         # Number of LED pixels.
-    LED_PIN    = board.D18   # GPIO pin connected to the pixels (18 uses PWM!).
-    pixels = neopixel.NeoPixel(LED_PIN, LED_COUNT, pixel_order=neopixel.RGB, auto_write=False, brightness=1.0)
-
-    color_scheme_1 = [(255,0,0), (0,255,0), (255,255,255)]
-    color_scheme_2 = [(255,255,255), (0,0,255)]
-    color_schemes = [color_scheme_1, color_scheme_2]
-    animations = [AnimationId.Twinkle.value, AnimationId.TwinkleStars.value, AnimationId.RainbowWave.value, AnimationId.Cylon.value]
-    speeds = [1.0, 2.0, 0.5, 4.0]
-
-    animation_playlist = AnimationPlaylist(pixels, animations, color_schemes, speeds, time_delay=10)
-    animation_playlist.start_playlist()
-
-
-

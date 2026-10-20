@@ -13,6 +13,7 @@ LED_PIN    = board.D18   # GPIO pin connected to the pixels (18 uses PWM!).
 class LightControl:
     def __init__(self, led_size=LED_COUNT):
         self.leds = NeoPixel(LED_PIN, led_size, pixel_order=RGB, auto_write=False, brightness=1.0)
+        self.current_palette = None
 
     def set_color(self, color):
         Logger.info(TAG, f"Setting color to {str(hex(color)).upper()}")
@@ -21,6 +22,7 @@ class LightControl:
 
     def set_color_pallete(self, colors):
         Logger.info(TAG, f"Setting color palette with {len(colors)} colors for {LED_COUNT} LEDs.")
+        self.current_palette = colors
 
         # Log the color palette with indices
         for index, color in enumerate(colors):
@@ -32,6 +34,13 @@ class LightControl:
 
         # Show the updated LED states
         self.show()
+
+    def reset_palette(self):
+        if self.current_palette is None:
+            Logger.warning(TAG, "No palette to reset to")
+            return False
+        self.set_color_pallete(self.current_palette)
+        return True
 
     def show(self):
         self.leds.show()
