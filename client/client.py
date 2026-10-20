@@ -12,6 +12,7 @@ PORT = 65432          # The port used by the server
 
 CHRISTMAS_PALETTES = {}
 ANIMATION_OPTIONS = {}
+PLAYLIST_OPTIONS = {}
 VOLUME_STATE = 100 # initial value
 
 _ffmpeg_proc = None
@@ -20,7 +21,8 @@ class CachedId(Enum):
     VOLUME_STATE=1
     PALLETES=2
     ANIMATION_EFFECTS=3
-    NONE=4
+    PLAYLISTS=4
+    NONE=5
 
 
 def pick_command():
@@ -35,12 +37,14 @@ def pick_command():
     print("3. Pick Pallette")
     print("4. Enable Audio Sync")
     print("5. Disable Audio Sync")
-    print("6. Create and start animation playlist")
+    print("6. Start animation playlist")
     print("7. Stop animation playlist")
     print("8. Set Volume")
     print("9. Get Volume")
     print("10. Add a custom palette")
     print("11. Remove a custom palette")
+    print("12. Add an animation playlist")
+    print("13. Remove an animation playlist")
     return input("Enter command to send to server (or 'exit' to quit): ")
 
 
@@ -223,64 +227,25 @@ def send_enable_audio_sync_command():
     start_stream_detached()
     return _set_is_audio_sync_enabled(True)
 
-
 def send_disable_audio_sync_command():
     set_audio_output("MacBook Pro Speakers")
     stop_stream()
     return _set_is_audio_sync_enabled(False)
 
 def send_start_animation_playlist_command():
-    """Prompts a user to generate and send a playlist of animations"""
-    add_animation = True
-    animations = []
-    while add_animation:
-        print()
-        names = list(ANIMATION_OPTIONS.keys())
-        for index, effect in enumerate(names):
-            info = ANIMATION_OPTIONS[effect]
-            description = info["description"]
-            print(f"{index + 1}. {effect}:\n  - {description}")
-        effect_index = int(input("Enter an animation id from above: "))
-        effect = ANIMATION_OPTIONS[names[effect_index - 1]]["id"]
-
-        # present speed options
-        print("Enter a desired speed.\n - 1.0 = default\n - 2.0 = double speed\n - 0.5 = half speed")
-        speed = float(input("Enter speed: "))
-
-        animations.append(
-            {
-                "animation_id": effect,
-                "speed": speed
-            }
-        )
-
-        add_animation = input("\nWould you like to add another animation to the playlist? (Y/n): ").strip().upper() == "Y"
-
-    add_color_scheme = True
-    color_schemes = []
-    while add_color_scheme:
-        # specify color scheme/palette options
-        print("\nPick the following Color Scheme:")
-        names = list(CHRISTMAS_PALETTES.keys())
-        for index, pallete in enumerate(names):
-            print(f"{index + 1}. {pallete}")
-
-        # specifies an option for pre-loaded color on pi server
-        print(f"{len(names) + 1}. Default colors loaded on pi server.")
-
-        scheme_choice = abs(int(input("Choose a scheme from the list above: ")))
-        scheme = CHRISTMAS_PALETTES[names[scheme_choice - 1]] if scheme_choice <= len(names) else []
-        color_schemes.append(scheme)
-
-        add_color_scheme = input("\nWould you like to add another color scheme? (Y/n): ").strip().upper() == "Y"
+    print("Pick a playlist to play:")
+    names = list(PLAYLIST_OPTIONS.keys())
+    for index, playlist in enumerate(names):
+        print(f"{index + 1}. {playlist}")
+    playlist_choice = int(input("Choose a playlist from the list above: "))
+    playlist_name = names[playlist_choice - 1]
 
     time_delay = int(input("\nEnter the time delay between each animation (in seconds): "))
 
     json_data = {
         "method" : "start_animation_playlist",
         "params" : {
-            "animations" : animations,
-            "color_schemes" : color_schemes,
+            "playlist_name" : playlist_name,
             "time_delay" : time_delay
         }
     }
@@ -317,6 +282,14 @@ def get_volume():
     return json.dumps(json_data), True, CachedId.VOLUME_STATE, False
 
 
+def get_playlists():
+    json_data = {
+        "method" : "get_playlists",
+        "params" : {},
+    }
+    return json.dumps(json_data), True, CachedId.PLAYLISTS, False
+
+
 def send_add_palette_command():
     palette_name = input("Give the new palette name: ")
     colors = []
@@ -347,6 +320,78 @@ def send_remove_palette_command():
         }
     }
     return json.dumps(json_data), False, CachedId.NONE, True
+
+def send_add_playlist_command():
+    """Prompts a user to generate and send a playlist of animations"""
+    playlist_name = input("Enter a name for the playlist: ")
+
+    add_animation = True
+    animations = []
+    while add_animation:
+        print()
+        names = list(ANIMATION_OPTIONS.keys())
+        for index, effect in enumerate(names):
+            info = ANIMATION_OPTIONS[effect]
+            description = info["description"]
+            print(f"{index + 1}. {effect}:\n  - {description}")
+        effect_index = int(input("Enter an animation id from above: "))
+        effect_name = names[effect_index - 1]
+
+        # present speed options
+        print("Enter a desired speed.\n - 1.0 = default\n - 2.0 = double speed\n - 0.5 = half speed")
+        speed = float(input("Enter speed: "))
+
+        animations.append(
+            {
+                "animation_name": effect_name,
+                "speed": speed
+            }
+        )
+
+        add_animation = input("\nWould you like to add another animation to the playlist? (Y/n): ").strip().upper() == "Y"
+
+    add_color_scheme = True
+    color_schemes = []
+    while add_color_scheme:
+        # specify color scheme/palette options
+        print("\nPick the following Color Scheme:")
+        names = list(CHRISTMAS_PALETTES.keys())
+        for index, pallete in enumerate(names):
+            print(f"{index + 1}. {pallete}")
+
+        # specifies an option for pre-loaded color on pi server
+        print(f"{len(names) + 1}. Default colors loaded on pi server.")
+
+        scheme_choice = abs(int(input("Choose a scheme from the list above: ")))
+        scheme = names[scheme_choice - 1]
+        color_schemes.append(scheme)
+
+        add_color_scheme = input("\nWould you like to add another color scheme? (Y/n): ").strip().upper() == "Y"
+
+    json_data = {
+        "method" : "add_animation_playlist",
+        "params" : {
+            "playlist_name": playlist_name,
+            "animations" : animations,
+            "palettes" : color_schemes,
+        }
+    }
+    return json.dumps(json_data), False, CachedId.NONE, True
+
+def send_remove_playlist_command():
+    print("Pick a playlist to remove:")
+    names = list(PLAYLIST_OPTIONS.keys())
+    for index, playlist in enumerate(names):
+        print(f"{index + 1}. {playlist}")
+    playlist_choice = int(input("Choose a playlist from the list above: "))
+    json_data = {
+        "method" : "remove_animation_playlist",
+        "params" : {
+            "playlist_name" : names[playlist_choice - 1]
+        }
+    }
+    return json.dumps(json_data), False, CachedId.NONE, True
+
 
 def get_palettes():
     """Constructs `get_palettes` command"""
@@ -386,6 +431,8 @@ def construct_json(command):
         9: get_volume,
         10: send_add_palette_command,
         11: send_remove_palette_command,
+        12: send_add_playlist_command,
+        13: send_remove_playlist_command,
     }
     return commands[command]()
 
@@ -411,6 +458,7 @@ def main():
         global CHRISTMAS_PALETTES
         global ANIMATION_OPTIONS
         global VOLUME_STATE
+        global PLAYLIST_OPTIONS
         s.connect((HOST, PORT))  # Connect to the server
         print(f"Connected to server at {HOST}:{PORT}")
 
@@ -425,6 +473,10 @@ def main():
         volume_command, _, _, _ = get_volume()
         s.sendall(volume_command.encode('utf-8'))
         VOLUME_STATE = recv_all(s)["result"]["volume"]
+
+        playlist_command, _, _, _ = get_playlists()
+        s.sendall(playlist_command.encode('utf-8'))
+        PLAYLIST_OPTIONS = recv_all(s)["result"]
 
         while True:
             command = pick_command()
@@ -446,6 +498,8 @@ def main():
                     CHRISTMAS_PALETTES = result
                 elif cache_type == CachedId.ANIMATION_EFFECTS:
                     ANIMATION_OPTIONS = result
+                elif cache_type == CachedId.PLAYLISTS:
+                    PLAYLIST_OPTIONS = result
                 print(f"Succesfully received data from server")
             else:
                 print(f"Received from server:\n{json.dumps(json_data, indent=4)}")
@@ -462,6 +516,10 @@ def main():
                 volume_command, _, _, _ = get_volume()
                 s.sendall(volume_command.encode('utf-8'))
                 VOLUME_STATE = recv_all(s)["result"]["volume"]
+
+                playlist_command, _, _, _ = get_playlists()
+                s.sendall(playlist_command.encode('utf-8'))
+                PLAYLIST_OPTIONS = recv_all(s)["result"]
 
 if __name__ == "__main__":
     main()
