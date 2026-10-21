@@ -1,11 +1,13 @@
 
 from json import loads, dumps
+from random import choice
 from alsaaudio import Mixer
 from logger import Logger
 from light_control import LightControl
 from animation_constants import *
 from animation import *
-from animation_playlist import AnimationPlaylist
+from animation_playlist import AnimationPlaylist, AnimationPlaylistData
+from animation_playlist_manager import AnimationPlaylistManager
 from enum import Enum
 from color_palette_manager import ColorPaletteManager, ColorPaletteReturnStatus
 from tcp_audio_sync import AudioVisualReceiver
@@ -21,10 +23,12 @@ ERROR_CODE_TAG = "code"
 # params tags
 COLOR_TAG = "color"
 PALLETE_TAG = "pallete"
+PALETTES_TAG = "palettes"
 PALETTE_COLORS_TAG = "palette_colors"
 SPEED_TAG = "speed"
 COLOR_SCHEME_TAG = "color_scheme"
 ANIMATION_EFFECT_ID_TAG = "animation_id"
+ANIMATION_NAME_TAG = "animation_name"
 ANIMATIONS_TAG = "animations"
 COLOR_SCHEMES_TAG = "color_schemes"
 PLAYLIST_TIME_DELAY_TAG = "time_delay"
@@ -32,6 +36,7 @@ URL_TAG = "url"
 VOLUME_TAG = "volume"
 LED_COUNT_TAG = "led_count"
 IS_ENABLED_TAG = "is_enabled"
+PLAYLIST_NAME_TAG = "playlist_name"
 
 # error codes
 PARSE_ERROR = -32700
@@ -80,6 +85,9 @@ class JsonRpc:
             "get_audio_sync_state": self._get_audio_sync_state,
             "add_palette": self._add_color_palette,
             "remove_palette": self._remove_color_palette,
+            "add_animation_playlist" : self._add_playlist,
+            "remove_animation_playlist" : self._remove_playlist,
+            "get_playlists" : self._get_playlists,
         }
         self.light_controller = LightControl()
         self.animation_controller = None
@@ -87,6 +95,7 @@ class JsonRpc:
         self.volume_mixer = Mixer()
         self.audio_visual_receiver = AudioVisualReceiver(self.light_controller.get_pixels(), DEFAULT_COLOR_PALLETE)
         self.color_palette_manager = ColorPaletteManager()
+        self.animation_playlist_manager = AnimationPlaylistManager()
 
     def process_json(self, json_str):
         try:
@@ -143,12 +152,6 @@ class JsonRpc:
             color_list = default_list
         return color_list
 
-    def _convert_hex_to_colors(self, color_list):
-        return [
-            ((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF) if isinstance(color, int) else color
-            for color in color_list
-        ]
-
     def _set_light(self, params):
         Logger.info(TAG, "Calling set light")
         if params.get(COLOR_TAG) is None:
@@ -201,9 +204,6 @@ class JsonRpc:
         # Set the default color scheme based on the animation effect
         color_scheme = self._validate_color_list(color_scheme, DEFAULT_COLOR_SCHEME)
 
-        # convert to list of tuples if values are integers
-        color_scheme = self._convert_hex_to_colors(color_scheme)
-
         # default speed to 1 if not defined
         speed = params.get(SPEED_TAG, 1)
 
@@ -222,38 +222,21 @@ class JsonRpc:
         return self._construct_result(True)
 
     def _start_playlist(self, params):
-        animations_id = params.get(ANIMATIONS_TAG)
-        if animations_id is None:
-            Logger.error(TAG, "No animations provided")
+        playlist_name = params.get(PLAYLIST_NAME_TAG)
+        if playlist_name is None:
+            Logger.error(TAG, "No playlist provided")
             return self._construct_error(INVALID_PARAMS)
 
-        color_schemes_id = params.get(COLOR_SCHEMES_TAG)
-        if color_schemes_id is None:
-            Logger.error(TAG, "No color schemes provided")
+        playlists = self.animation_playlist_manager.get_playlists()
+        playlist = playlists.get(playlist_name)
+        if playlist is None:
+            Logger.error(TAG, "Invalid playlist provided")
             return self._construct_error(INVALID_PARAMS)
-
-        animations = []
-        speeds = []
-        for animation in animations_id:
-            animation_id = animation.get(ANIMATION_EFFECT_ID_TAG)
-            speed = animation.get(SPEED_TAG, 1.0)
-            if animation_id is None:
-                Logger.warning(TAG, "Invalid animation provided. Skipping from playlist")
-                continue
-            animations.append(animation_id)
-            speeds.append(speed)
-
-        color_schemes = []
-        for color_scheme in color_schemes_id:
-            color_scheme = self._validate_color_list(color_scheme, DEFAULT_COLOR_PALLETE)
-            color_scheme = self._convert_hex_to_colors(color_scheme)
-            color_schemes.append(color_scheme)
-
         self._generic_teardown()
 
         pixels = self.light_controller.get_pixels()
         time_delay = params.get(PLAYLIST_TIME_DELAY_TAG, DEFAULT_PLAYLIST_TIME_DELAY)
-        self.animation_playlist = AnimationPlaylist(pixels, animations, color_schemes, speeds, time_delay)
+        self.animation_playlist = AnimationPlaylist(pixels, AnimationPlaylistData(**playlist), time_delay)
         self.animation_playlist.start_playlist()
         return self._construct_result(True)
 
@@ -263,10 +246,51 @@ class JsonRpc:
         self.animation_playlist.stop_playlist()
         self.animation_playlist = None
 
-        # now that is stopped display a default palette
-        self.light_controller.set_color_pallete(DEFAULT_COLOR_PALLETE)
+        # now that is stopped display a the last palette
+        if not self.light_controller.reset_palette():
+            Logger.warning(TAG, "Using a random color palette")
+            random_palette = choice(list(self.color_palette_manager.get_color_palettes().values()))
+            self.light_controller.set_color_pallete(random_palette)
 
         return self._construct_result(True)
+
+    def _add_playlist(self, params):
+        playlist_name = params.get(PLAYLIST_NAME_TAG)
+        if playlist_name is None:
+            Logger.error(TAG, "No playlist name provided")
+            return self._construct_error(INVALID_PARAMS)
+
+        animations_id = params.get(ANIMATIONS_TAG)
+        if animations_id is None:
+            Logger.error(TAG, "No animations provided")
+            return self._construct_error(INVALID_PARAMS)
+
+        palette_names = params.get(PALETTES_TAG)
+        if palette_names is None:
+            Logger.error(TAG, "No color schemes provided")
+            return self._construct_error(INVALID_PARAMS)
+
+        animations = []
+        speeds = []
+        for animation in animations_id:
+            animation_name = animation.get(ANIMATION_NAME_TAG)
+            if animation_name is None:
+                Logger.warning(TAG, "Invalid animation provided. Skipping from playlist")
+                continue
+            animations.append(animation_name)
+            speeds.append(animation.get(SPEED_TAG, 1.0))
+
+        self.animation_playlist_manager.add(playlist_name, AnimationPlaylistData(animations, palette_names, speeds))
+        return self._construct_result(True)
+
+    def _remove_playlist(self, params):
+        playlist_name = params.get(PLAYLIST_NAME_TAG)
+        if playlist_name is None:
+            Logger.error(TAG, "No playlist provided")
+            return self._construct_error(INVALID_PARAMS)
+        self.animation_playlist_manager.remove(playlist_name)
+        return self._construct_result(True)
+
 
     def _set_audio_sync_is_enabled(self, params):
         is_enabled = params.get(IS_ENABLED_TAG)
@@ -345,6 +369,9 @@ class JsonRpc:
 
     def _get_audio_sync_state(self, params):
         return self._construct_result(self.audio_visual_receiver.is_enabled())
+
+    def _get_playlists(self, params):
+        return self._construct_result(self.animation_playlist_manager.get_playlists())
 
     def _generic_teardown(self):
         if self.animation_controller is not None:
