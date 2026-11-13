@@ -10,7 +10,9 @@ from animation_playlist import AnimationPlaylist, AnimationPlaylistData
 from animation_playlist_manager import AnimationPlaylistManager
 from enum import Enum
 from color_palette_manager import ColorPaletteManager, ColorPaletteReturnStatus
+from color_palettes import DEFAULT_COLOR_PALLETE
 from tcp_audio_sync import AudioVisualReceiver
+from visualization_info import VISUALIZATIONS
 
 # json-rpc commnd tags
 METHOD_TAG = "method"
@@ -37,6 +39,7 @@ VOLUME_TAG = "volume"
 LED_COUNT_TAG = "led_count"
 IS_ENABLED_TAG = "is_enabled"
 PLAYLIST_NAME_TAG = "playlist_name"
+AUDIO_SYNC_MODE_TAG = "mode"
 
 # error codes
 PARSE_ERROR = -32700
@@ -61,8 +64,6 @@ ERRROR_MESSAGES = {
 
 VALID_TAGS = [METHOD_TAG, PARAMS_TAG]
 
-DEFAULT_COLOR_SCHEME = [(255, 0, 0), (0, 255, 0)]
-DEFAULT_COLOR_PALLETE = [(30,124,32), (182,0,0), (0,55,251), (223,101,0), (129,0,219)]
 DEFAULT_PLAYLIST_TIME_DELAY = 120 # 2 minutes of delay
 
 TAG = "JsonRpc"
@@ -88,6 +89,8 @@ class JsonRpc:
             "add_animation_playlist" : self._add_playlist,
             "remove_animation_playlist" : self._remove_playlist,
             "get_playlists" : self._get_playlists,
+            "set_visualization" : self._set_visualization,
+            "get_visualizations" : self._get_visualizations,
         }
         self.light_controller = LightControl()
         self.animation_controller = None
@@ -96,6 +99,7 @@ class JsonRpc:
         self.audio_visual_receiver = AudioVisualReceiver(self.light_controller.get_pixels(), DEFAULT_COLOR_PALLETE)
         self.color_palette_manager = ColorPaletteManager()
         self.animation_playlist_manager = AnimationPlaylistManager()
+        self.light_controller.set_color_pallete(DEFAULT_COLOR_PALLETE)
 
     def process_json(self, json_str):
         try:
@@ -202,7 +206,7 @@ class JsonRpc:
         self._generic_teardown()
 
         # Set the default color scheme based on the animation effect
-        color_scheme = self._validate_color_list(color_scheme, DEFAULT_COLOR_SCHEME)
+        color_scheme = self._validate_color_list(color_scheme, DEFAULT_COLOR_PALLETE)
 
         # default speed to 1 if not defined
         speed = params.get(SPEED_TAG, 1)
@@ -355,6 +359,14 @@ class JsonRpc:
             self.light_controller = LightControl(led_count)
         return self._construct_result(True)
 
+    def _set_visualization(self, params):
+        mode = params.get(AUDIO_SYNC_MODE_TAG)
+        if mode is None:
+            Logger.error(TAG, "No mode provided.")
+            return self._construct_error(INVALID_PARAMS)
+        self.audio_visual_receiver.set_visualization(mode)
+        return self._construct_result(True)
+
     def _get_volume(self, params):
         volume_result = {
             VOLUME_TAG : self.volume_mixer.getvolume()[0]
@@ -372,6 +384,9 @@ class JsonRpc:
 
     def _get_playlists(self, params):
         return self._construct_result(self.animation_playlist_manager.get_playlists())
+
+    def _get_visualizations(self, param):
+        return self._construct_result(VISUALIZATIONS)
 
     def _generic_teardown(self):
         if self.animation_controller is not None:

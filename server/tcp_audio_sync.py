@@ -7,6 +7,18 @@ import queue
 import neopixel
 import board
 from logger import Logger
+from visualization_info import (
+    VisualizationnId,
+    VISUALIZATIONS,
+    VISUALIZATION_MAPPING,
+)
+from visualization import (
+    Visualization,
+    FftVisualization,
+    WaveformVisualization,
+    BeatVisualization,
+    EnergyVisualization,
+)
 
 PI_PORT = 5005
 SAMPLE_RATE = 44100
@@ -50,18 +62,24 @@ class AudioVisualReceiver:
 
         # LEDs
         self.pixels = pixels
-        self.color_palette = color_palette
+        # self.color_palette = color_palette
         self.num_pixels = len(pixels)
         self.palette_lock = threading.Lock()
+
+        # Active visualization
+        self.visualization_lock = threading.Lock()
+        self._visualizer_lock = threading.Lock()
+
+        self.visualizer = FftVisualization(
+            num_pixels=self.num_pixels,
+            sample_rate=SAMPLE_RATE,
+            min_freq=MIN_FREQ,
+            max_freq=MAX_FREQ,
+        )
 
         # Queues
         self.audio_queue = queue.Queue(maxsize=256)
         self.led_queue = queue.Queue(maxsize=2)
-
-        # FFT state
-        self.prev_mags = None
-        self.max_mag = 1e-6
-        self.freq_bins = np.logspace(np.log10(MIN_FREQ), np.log10(MAX_FREQ), self.num_pixels + 1)
 
         self.running = True
 
@@ -70,6 +88,40 @@ class AudioVisualReceiver:
         threading.Thread(target=self._network_loop, daemon=True).start()
         threading.Thread(target=self._audio_loop, daemon=True).start()
         threading.Thread(target=self._led_worker, daemon=True).start()
+
+        self.set_color_palette(color_palette)
+
+    def set_visualization(self, visualizationId: int):
+        """Switch visualization using its registered ID."""
+        visualizationClass = VISUALIZATION_MAPPING.get(visualizationId)
+
+        if visualizationClass is None:
+            Logger.error(
+                self.tag,
+                f"Unknown visualization ID: {visualizationId}",
+            )
+            return
+
+        visualization = visualizationClass(
+            self.num_pixels,
+            SAMPLE_RATE,
+        )
+
+        with self._visualizer_lock:
+            visualization.reset()
+            self.visualizer = visualization
+
+        # Discard queued frames from the previous visualization.
+        while True:
+            try:
+                self.led_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        Logger.info(
+            self.tag,
+            f"Visualization changed to {type(visualization).__name__}",
+        )
 
     # set color palette safely
     def set_color_palette(self, new_palette):
@@ -185,9 +237,6 @@ class AudioVisualReceiver:
         while not self.led_queue.empty():
             self.led_queue.get_nowait()
 
-        self.prev_mags = None
-        self.max_mag = 1e-6
-
     # audio thread
     def _audio_loop(self):
         silence = np.zeros((AUDIO_CHUNK_SIZE, CHANNELS), dtype=np.int16)
@@ -217,16 +266,23 @@ class AudioVisualReceiver:
             # Otherwise normal audio output
             self.stream.write(pcm)
 
-            # Now handle FFT + LED visualization (only when enabled)
+            # Generate LED frames using the active visualization.
             for i in range(0, AUDIO_CHUNK_SIZE, VIS_CHUNK_SIZE):
                 vis = pcm[i:i+VIS_CHUNK_SIZE]
 
                 if len(vis) < VIS_CHUNK_SIZE:
                     vis = np.pad(vis, ((0, VIS_CHUNK_SIZE-len(vis)), (0,0)))
 
-                mono = vis.mean(axis=1).astype(np.float32)
-                mags = self._perform_fft(mono)
-                led_frame = self._compute_led_colors(mags)
+                # Convert stereo int16 PCM to normalized mono float32.
+                mono = vis.mean(axis=1).astype(np.float32) / 32768.0
+
+                with self._visualizer_lock:
+                    visualizer = self.visualizer
+
+                with self.palette_lock:
+                    palette = list(self.color_palette)
+
+                led_frame = visualizer.process(mono, palette)
 
                 try:
                     self.led_queue.put_nowait(led_frame)
@@ -251,71 +307,97 @@ class AudioVisualReceiver:
 
             self.pixels.show()
 
-    ## calculate DFT using FFT
-    def _perform_fft(self, chunk):
-        if np.all(chunk == 0):
-            self.max_mag *= 0.9
-            if self.prev_mags is None:
-                self.prev_mags = np.zeros(VIS_CHUNK_SIZE // 2)
-            else:
-                self.prev_mags *= 0.8
-            return self.prev_mags
-
-        windowed = chunk * np.hanning(len(chunk))
-        fft = np.fft.fft(windowed)
-        mags = np.abs(fft[:len(fft)//2])
-
-        if self.prev_mags is None:
-            self.prev_mags = mags
-
-        smoothed = 0.25*mags + 0.75*self.prev_mags
-        self.prev_mags = smoothed
-        self.max_mag = max(self.max_mag * 0.999, np.max(smoothed))
-        return smoothed
-
-    def _compute_led_colors(self, mags):
-        colors = []
-        N = len(mags) * 2
-        freq_per_bin = SAMPLE_RATE / N
-        local_max = max(self.max_mag, 1e-6)
-
-        with self.palette_lock:
-            palette = self.color_palette
-
-        for i in range(self.num_pixels):
-            lo = int(self.freq_bins[i] / freq_per_bin)
-            hi = int(self.freq_bins[i+1] / freq_per_bin)
-            if hi <= lo:
-                hi = lo + 1
-
-            band_mag = np.mean(mags[lo:hi])
-            b = band_mag / local_max
-            c = palette[i % len(palette)]
-            colors.append((int(c[0]*b), int(c[1]*b), int(c[2]*b)))
-
-        # return colors[::-1]
-        return colors
 
 
 if __name__ == "__main__":
     LED_COUNT = 50
     LED_PIN = board.D18
-    COLOR_PALETTE = [(30, 124, 32), (182, 0, 0), (0, 55, 251), (223, 101, 0), (129, 0, 219)]
-    pixels = neopixel.NeoPixel(LED_PIN, LED_COUNT, pixel_order=neopixel.RGB, auto_write=False, brightness=1.0)
-    receiver = AudioVisualReceiver(pixels, COLOR_PALETTE, True)
 
-    time.sleep(10)
-    new_palette = [	(7,132,181), (202,222,239)]
-    receiver.set_color_palette(new_palette)
+    COLOR_PALETTE = [
+        (30, 124, 32),
+        (182, 0, 0),
+        (0, 55, 251),
+        (223, 101, 0),
+        (129, 0, 219),
+    ]
 
-    time.sleep(5)
-    receiver.set_visualization_enabled(False)
+    pixels = neopixel.NeoPixel(
+        LED_PIN,
+        LED_COUNT,
+        pixel_order=neopixel.RGB,
+        auto_write=False,
+        brightness=1.0,
+    )
 
-    time.sleep(5)
-    receiver.set_visualization_enabled(True)
+    receiver = AudioVisualReceiver(
+        pixels,
+        COLOR_PALETTE,
+        True,
+    )
+
+    # Build the interactive menu from visualization_info.py.
+    visualizations_by_id = {
+        str(info["id"]): (name, info)
+        for name, info in VISUALIZATIONS.items()
+    }
+
+    def print_menu():
+        print("\n========== Music-to-LED Visualizations ==========")
+
+        for key, (name, info) in visualizations_by_id.items():
+            print(f"\n  {key}. {name}")
+            print(f"     {info['description']}")
+
+        print("\n  q. Quit")
+        print("=================================================")
 
     try:
+        # Start with the original FFT visualization.
+        receiver.set_visualization(VisualizationnId.FFT.value)
+
+        print_menu()
+        print("\nCurrent visualization: FFT")
+
         while True:
-            time.sleep(1)
+            choice = input(
+                "\nSelect visualization (1-4, q to quit): "
+            ).strip().lower()
+
+            if choice == "q":
+                break
+
+            selection = visualizations_by_id.get(choice)
+
+            if selection is None:
+                print("Invalid selection. Enter 1, 2, 3, 4, or q.")
+                continue
+
+            name, info = selection
+
+            receiver.set_visualization(info["id"])
+            print(f"\nSwitched to: {name}")
+            print(info["description"])
+
     except KeyboardInterrupt:
+        print("\nStopping visualization...")
+
+    finally:
         receiver.running = False
+
+        # Close the network socket to unblock accept().
+        receiver.sock.close()
+
+        # Close the active client connection, if any.
+        with receiver.conn_lock:
+            if receiver.conn is not None:
+                receiver.conn.close()
+                receiver.conn = None
+                receiver.connected = False
+
+        receiver.stream.stop()
+        receiver.stream.close()
+
+        pixels.fill((0, 0, 0))
+        pixels.show()
+
+        print("Music-to-LED receiver stopped.")
