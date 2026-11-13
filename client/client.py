@@ -22,7 +22,8 @@ class CachedId(Enum):
     PALLETES=2
     ANIMATION_EFFECTS=3
     PLAYLISTS=4
-    NONE=5
+    VISUALIZATIONS=5
+    NONE=6
 
 
 def pick_command():
@@ -45,6 +46,7 @@ def pick_command():
     print("11. Remove a custom palette")
     print("12. Add an animation playlist")
     print("13. Remove an animation playlist")
+    print("14. Set visualization mode")
     return input("Enter command to send to server (or 'exit' to quit): ")
 
 
@@ -290,6 +292,14 @@ def get_playlists():
     return json.dumps(json_data), True, CachedId.PLAYLISTS, False
 
 
+def get_visualizations():
+    json_data = {
+        "method" : "get_visualizations",
+        "params" : {},
+    }
+    return json.dumps(json_data), True, CachedId.VISUALIZATIONS, False
+
+
 def send_add_palette_command():
     palette_name = input("Give the new palette name: ")
     colors = []
@@ -393,6 +403,23 @@ def send_remove_playlist_command():
     return json.dumps(json_data), False, CachedId.NONE, True
 
 
+def send_set_visualization_command():
+    print()
+    names = list(VISUALIZATIONS.keys())
+    for index, visual in enumerate(names):
+        info = VISUALIZATIONS[visual]
+        description = info["description"]
+        print(f"{index + 1}. {visual}:\n  - {description}")
+    visual_index = int(input("Enter a visualization id from above: "))
+    visualization = VISUALIZATIONS[names[visual_index - 1]]["id"]
+    json_data = {
+        "method" : "set_visualization",
+        "params" : {
+            "mode" : visualization,
+        }
+    }
+    return json.dumps(json_data), False, CachedId.NONE, False
+
 def get_palettes():
     """Constructs `get_palettes` command"""
     json_data = {
@@ -433,6 +460,7 @@ def construct_json(command):
         11: send_remove_palette_command,
         12: send_add_playlist_command,
         13: send_remove_playlist_command,
+        14: send_set_visualization_command,
     }
     return commands[command]()
 
@@ -453,30 +481,43 @@ def recv_all(s):
     return json_data
 
 
+def refresh_server_data(s):
+    global CHRISTMAS_PALETTES
+    global ANIMATION_OPTIONS
+    global VOLUME_STATE
+    global PLAYLIST_OPTIONS
+    global VISUALIZATIONS
+    palette_command, _, _, _ = get_palettes()
+    s.sendall(palette_command.encode('utf-8'))
+    CHRISTMAS_PALETTES = recv_all(s)["result"]
+
+    effects_command, _, _, _ = get_effects()
+    s.sendall(effects_command.encode('utf-8'))
+    ANIMATION_OPTIONS = recv_all(s)["result"]
+
+    volume_command, _, _, _ = get_volume()
+    s.sendall(volume_command.encode('utf-8'))
+    VOLUME_STATE = recv_all(s)["result"]["volume"]
+
+    playlist_command, _, _, _ = get_playlists()
+    s.sendall(playlist_command.encode('utf-8'))
+    PLAYLIST_OPTIONS = recv_all(s)["result"]
+
+    visualizations_command, _, _, _ = get_visualizations()
+    s.sendall(visualizations_command.encode('utf-8'))
+    VISUALIZATIONS = recv_all(s)["result"]
+
+
 def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         global CHRISTMAS_PALETTES
         global ANIMATION_OPTIONS
         global VOLUME_STATE
         global PLAYLIST_OPTIONS
+        global VISUALIZATIONS
         s.connect((HOST, PORT))  # Connect to the server
         print(f"Connected to server at {HOST}:{PORT}")
-
-        palette_command, _, _, _ = get_palettes()
-        s.sendall(palette_command.encode('utf-8'))
-        CHRISTMAS_PALETTES = recv_all(s)["result"]
-
-        effects_command, _, _, _ = get_effects()
-        s.sendall(effects_command.encode('utf-8'))
-        ANIMATION_OPTIONS = recv_all(s)["result"]
-
-        volume_command, _, _, _ = get_volume()
-        s.sendall(volume_command.encode('utf-8'))
-        VOLUME_STATE = recv_all(s)["result"]["volume"]
-
-        playlist_command, _, _, _ = get_playlists()
-        s.sendall(playlist_command.encode('utf-8'))
-        PLAYLIST_OPTIONS = recv_all(s)["result"]
+        refresh_server_data(s)
 
         while True:
             command = pick_command()
@@ -500,26 +541,14 @@ def main():
                     ANIMATION_OPTIONS = result
                 elif cache_type == CachedId.PLAYLISTS:
                     PLAYLIST_OPTIONS = result
+                elif cache_type == CachedId.VISUALIZATIONS:
+                    VISUALIZATIONS = result
                 print(f"Succesfully received data from server")
             else:
                 print(f"Received from server:\n{json.dumps(json_data, indent=4)}")
 
             if refresh_data:
-                palette_command, _, _, _ = get_palettes()
-                s.sendall(palette_command.encode('utf-8'))
-                CHRISTMAS_PALETTES = recv_all(s)["result"]
-
-                effects_command, _, _, _ = get_effects()
-                s.sendall(effects_command.encode('utf-8'))
-                ANIMATION_OPTIONS = recv_all(s)["result"]
-
-                volume_command, _, _, _ = get_volume()
-                s.sendall(volume_command.encode('utf-8'))
-                VOLUME_STATE = recv_all(s)["result"]["volume"]
-
-                playlist_command, _, _, _ = get_playlists()
-                s.sendall(playlist_command.encode('utf-8'))
-                PLAYLIST_OPTIONS = recv_all(s)["result"]
+                refresh_server_data(s)
 
 if __name__ == "__main__":
     main()
