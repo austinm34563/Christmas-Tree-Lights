@@ -48,15 +48,36 @@ class Visualization(ABC):
             for channel in color
         )
 
+
+    def get_colors(self, brightness, palette):
+        """
+        Generate an entire RGB frame using vectorized NumPy operations.
+
+        brightness: Array of brightness values, one per LED.
+        palette: List of RGB tuples.
+        """
+        if not palette:
+            return [(0, 0, 0)] * self.num_pixels
+
+        brightness = np.asarray(brightness, dtype=np.float32)
+        brightness = np.clip(brightness, 0.0, 1.0)
+
+        palette_array = np.asarray(palette, dtype=np.float32)
+
+        indices = np.arange(self.num_pixels) % len(palette)
+
+        colors = palette_array[indices] * brightness[:, np.newaxis]
+
+        colors = np.clip(colors, 0, 255).astype(np.uint8)
+
+        return [tuple(color) for color in colors]
+
     def solid_frame(self, brightness, palette):
         """Return a uniformly colored frame."""
-        return [
-            self.get_color(i, brightness, palette)
-            for i in range(self.num_pixels)
-        ]
-
-
-
+        return self.get_colors(
+            np.full(self.num_pixels, brightness, dtype=np.float32),
+            palette,
+        )
 
 class FftVisualization(Visualization):
     """Original FFT visualization, preserving legacy behavior."""
@@ -140,76 +161,205 @@ class FftVisualization(Visualization):
 
 class WaveformVisualization(Visualization):
     """
-    Displays audio amplitude across the strip.
+    Smooth, flowing audio-reactive waveform.
 
-    Samples are divided into groups, one group per LED.
-    Stronger signals produce brighter LEDs.
-    """
-
-    def process(self, audio_buffer, palette):
-        if not palette or len(audio_buffer) == 0:
-            return [(0, 0, 0)] * self.num_pixels
-
-        groups = np.array_split(audio_buffer, self.num_pixels)
-        colors = []
-
-        for i, group in enumerate(groups):
-            if len(group) == 0:
-                brightness = 0.0
-            else:
-                # RMS provides a smoother amplitude display than
-                # looking at a single sample.
-                rms = float(np.sqrt(np.mean(group ** 2)))
-                brightness = min(rms * 3.0, 1.0)
-
-            colors.append(self.get_color(i, brightness, palette))
-
-        return colors
-
-
-class BeatVisualization(Visualization):
-    """
-    Flashes the whole strip when audio energy rises sharply.
-
-    This is a lightweight energy-onset detector, not a full
-    musical beat tracker.
+    Uses low-resolution RMS analysis, interpolation,
+    and temporal smoothing for a more organic appearance.
     """
 
     def __init__(
         self,
         *args,
-        threshold=1.6,
-        decay=0.72,
+        sensitivity=8.0,
+        attack=0.75,
+        release=0.20,
+        num_bands=32,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+
+        self.sensitivity = sensitivity
+        self.attack = attack
+        self.release = release
+        self.num_bands = num_bands
+
+        self.smoothed_brightness = np.zeros(
+            self.num_pixels,
+            dtype=np.float32,
+        )
+
+    def reset(self):
+        self.smoothed_brightness.fill(0.0)
+
+    def process(self, audio_buffer, palette):
+        if not palette or len(audio_buffer) == 0:
+            return [(0, 0, 0)] * self.num_pixels
+
+        # Divide audio into a smaller number of groups.
+        groups = np.array_split(
+            audio_buffer,
+            self.num_bands,
+        )
+
+        # Calculate RMS for each group.
+        levels = np.array([
+            np.sqrt(np.mean(group ** 2))
+            if len(group) > 0 else 0.0
+            for group in groups
+        ], dtype=np.float32)
+
+        # Expand the audio data across all LEDs.
+        brightness = np.interp(
+            np.linspace(0, self.num_bands - 1, self.num_pixels),
+            np.arange(self.num_bands),
+            levels,
+        )
+
+        # Scale audio sensitivity.
+        brightness = np.clip(
+            brightness * self.sensitivity,
+            0.0,
+            1.0,
+        )
+
+        # Gamma adjustment for better visibility.
+        brightness = np.power(brightness, 1.3)
+
+        # Smooth transitions using separate attack/release rates.
+        rising = brightness > self.smoothed_brightness
+
+        smoothing = np.where(
+            rising,
+            self.attack,
+            self.release,
+        )
+
+        self.smoothed_brightness += (
+            brightness - self.smoothed_brightness
+        ) * smoothing
+
+        return self.get_colors(
+            self.smoothed_brightness,
+            palette,
+        )
+
+
+
+class BeatVisualization(Visualization):
+    """
+    Bass-focused beat detector using spectral flux.
+
+    Detects sudden increases in low-frequency energy rather
+    than relying on overall audio volume.
+
+    Includes adaptive sensitivity, beat cooldown, and
+    smooth LED pulse decay.
+    """
+
+    def __init__(
+        self,
+        *args,
+        threshold=1.8,
+        decay=0.82,
+        min_interval=0.18,
+        min_energy=0.008,
+        min_flux=0.12,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
         self.threshold = threshold
         self.decay = decay
-        self.previous_energy = 0.0
+        self.min_interval = min_interval
+        self.min_energy = min_energy
+        self.min_flux = min_flux
+
+        self.previous_bass = None
+        self.flux_baseline = 0.0
+
+        self.samples_since_beat = float("inf")
+
         self.pulse = 0.0
 
     def reset(self):
-        self.previous_energy = 0.0
+        self.previous_bass = None
+        self.flux_baseline = 0.0
+        self.samples_since_beat = float("inf")
         self.pulse = 0.0
 
     def process(self, audio_buffer, palette):
         if not palette or len(audio_buffer) == 0:
             return [(0, 0, 0)] * self.num_pixels
 
-        energy = float(np.sqrt(np.mean(audio_buffer ** 2)))
+        # Overall audio energy.
+        rms = float(np.sqrt(np.mean(audio_buffer ** 2)))
 
-        # Detect a sudden increase over the recent energy level.
-        if (
-            energy > 0.015
-            and energy > self.previous_energy * self.threshold
-        ):
+        # Ignore near-silence.
+        if rms < self.min_energy:
+            self.pulse *= self.decay
+            self.previous_bass = None
+            return self.solid_frame(self.pulse, palette)
+
+        # Calculate FFT.
+        windowed = audio_buffer * np.hanning(len(audio_buffer))
+
+        fft = np.fft.rfft(windowed)
+        magnitudes = np.abs(fft)
+
+        # Isolate approximately 40-170 Hz.
+        frequencies = np.fft.rfftfreq(
+            len(audio_buffer),
+            d=1.0 / self.sample_rate,
+        )
+
+        bass = magnitudes[
+            (frequencies >= 40) &
+            (frequencies <= 170)
+        ]
+
+        if len(bass) == 0:
+            return self.solid_frame(self.pulse, palette)
+
+        # Calculate positive spectral changes.
+        if self.previous_bass is None:
+            self.previous_bass = bass.copy()
+            self.pulse *= self.decay
+            return self.solid_frame(self.pulse, palette)
+
+        flux = float(
+            np.sum(np.maximum(bass - self.previous_bass, 0.0))
+            / (np.sum(self.previous_bass) + 1e-6)
+        )
+
+        self.previous_bass = bass.copy()
+
+        # Determine whether this is a new beat.
+        threshold = max(
+            self.min_flux,
+            self.flux_baseline * self.threshold,
+        )
+
+        self.samples_since_beat += len(audio_buffer)
+
+        cooldown_samples = (
+            self.min_interval * self.sample_rate
+        )
+
+        beat_detected = (
+            flux > threshold
+            and self.samples_since_beat >= cooldown_samples
+        )
+
+        if beat_detected:
             self.pulse = 1.0
+            self.samples_since_beat = 0
         else:
             self.pulse *= self.decay
 
-        self.previous_energy = max(
-            energy,
-            self.previous_energy * 0.85,
+        # Slowly adapt to the current music.
+        self.flux_baseline = (
+            0.95 * self.flux_baseline +
+            0.05 * flux
         )
 
         return self.solid_frame(self.pulse, palette)
@@ -239,22 +389,23 @@ class EnergyVisualization(Visualization):
             return [(0, 0, 0)] * self.num_pixels
 
         rms = float(np.sqrt(np.mean(audio_buffer ** 2)))
+
         self.smoothed_energy = (
             0.35 * rms + 0.65 * self.smoothed_energy
         )
 
-        level = min(self.smoothed_energy * self.sensitivity, 1.0)
+        level = min(
+            self.smoothed_energy * self.sensitivity,
+            1.0,
+        )
+
         lit_count = int(round(level * self.num_pixels))
 
-        colors = []
+        brightness = np.zeros(
+            self.num_pixels,
+            dtype=np.float32,
+        )
 
-        for i in range(self.num_pixels):
-            if i < lit_count:
-                # A little brightness variation makes the meter
-                # less visually flat.
-                brightness = 0.5 + 0.5 * level
-                colors.append(self.get_color(i, brightness, palette))
-            else:
-                colors.append((0, 0, 0))
+        brightness[:lit_count] = 0.5 + 0.5 * level
 
-        return colors
+        return self.get_colors(brightness, palette)
