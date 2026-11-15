@@ -79,6 +79,7 @@ class AudioVisualReceiver:
 
         # Queues
         self.audio_queue = queue.Queue(maxsize=256)
+        self.visualization_queue = queue.Queue(maxsize=8)
         self.led_queue = queue.Queue(maxsize=2)
 
         self.running = True
@@ -87,6 +88,7 @@ class AudioVisualReceiver:
         threading.Thread(target=self._connection_manager, daemon=True).start()
         threading.Thread(target=self._network_loop, daemon=True).start()
         threading.Thread(target=self._audio_loop, daemon=True).start()
+        threading.Thread(target=self._visualization_loop, daemon=True).start()
         threading.Thread(target=self._led_worker, daemon=True).start()
 
         self.set_color_palette(color_palette)
@@ -112,11 +114,15 @@ class AudioVisualReceiver:
             self.visualizer = visualization
 
         # Discard queued frames from the previous visualization.
-        while True:
-            try:
-                self.led_queue.get_nowait()
-            except queue.Empty:
-                break
+        for frame_queue in (
+            self.visualization_queue,
+            self.led_queue,
+        ):
+            while True:
+                try:
+                    frame_queue.get_nowait()
+                except queue.Empty:
+                    break
 
         Logger.info(
             self.tag,
@@ -239,11 +245,12 @@ class AudioVisualReceiver:
 
     # audio thread
     def _audio_loop(self):
-        silence = np.zeros((AUDIO_CHUNK_SIZE, CHANNELS), dtype=np.int16)
+        silence = np.zeros(
+            (AUDIO_CHUNK_SIZE, CHANNELS),
+            dtype=np.int16,
+        )
 
         while self.running:
-
-            # If not connected, output silence
             if not self.connected:
                 self.stream.write(silence)
                 time.sleep(0.01)
@@ -254,35 +261,72 @@ class AudioVisualReceiver:
             except queue.Empty:
                 pcm = silence
 
-            # Check visualization state (controls both audio + LED)
             with self.visualization_lock:
                 vis_enabled = self.visualization_enabled
 
             if not vis_enabled:
-                # Output silence instead of audio
                 self.stream.write(silence)
                 continue
 
-            # Otherwise normal audio output
+            # Audio playback should never wait for visualization.
             self.stream.write(pcm)
 
-            # Generate LED frames using the active visualization.
+            # Split into visualization chunks.
             for i in range(0, AUDIO_CHUNK_SIZE, VIS_CHUNK_SIZE):
-                vis = pcm[i:i+VIS_CHUNK_SIZE]
+                vis = pcm[i:i + VIS_CHUNK_SIZE]
 
                 if len(vis) < VIS_CHUNK_SIZE:
-                    vis = np.pad(vis, ((0, VIS_CHUNK_SIZE-len(vis)), (0,0)))
+                    vis = np.pad(
+                        vis,
+                        ((0, VIS_CHUNK_SIZE - len(vis)), (0, 0)),
+                    )
 
-                # Convert stereo int16 PCM to normalized mono float32.
-                mono = vis.mean(axis=1).astype(np.float32) / 32768.0
+                mono = (
+                    vis.mean(axis=1).astype(np.float32) / 32768.0
+                )
 
-                with self._visualizer_lock:
-                    visualizer = self.visualizer
+                # Keep only the newest pending visualization data.
+                try:
+                    self.visualization_queue.put_nowait(mono)
+                except queue.Full:
+                    try:
+                        self.visualization_queue.get_nowait()
+                    except queue.Empty:
+                        pass
 
-                with self.palette_lock:
-                    palette = list(self.color_palette)
+                    try:
+                        self.visualization_queue.put_nowait(mono)
+                    except queue.Full:
+                        pass
 
-                led_frame = visualizer.process(mono, palette)
+    # visualiation thread
+    def _visualization_loop(self):
+        while self.running:
+            try:
+                mono = self.visualization_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+
+            with self.visualization_lock:
+                if not self.visualization_enabled:
+                    continue
+
+            with self._visualizer_lock:
+                visualizer = self.visualizer
+
+            with self.palette_lock:
+                palette = list(self.color_palette)
+
+            led_frame = visualizer.process(mono, palette)
+
+            # Keep the LED queue fresh as well.
+            try:
+                self.led_queue.put_nowait(led_frame)
+            except queue.Full:
+                try:
+                    self.led_queue.get_nowait()
+                except queue.Empty:
+                    pass
 
                 try:
                     self.led_queue.put_nowait(led_frame)
