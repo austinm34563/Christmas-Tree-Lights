@@ -31,11 +31,14 @@ VIS_ANALYSIS_SIZE = 4096
 
 
 class AudioVisualReceiver:
-    def __init__(self, pixels, color_palette, enabled = False):
+    def __init__(self, pixels, color_palette, on_stop = None, enabled = False):
         self.tag = "AudioVisualReceiver"
 
         self.visualization_enabled = enabled
         self.visualization_lock = threading.Lock()
+
+        # set callback
+        self.on_stop = on_stop
 
         # Networking
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -173,10 +176,7 @@ class AudioVisualReceiver:
             self.visualization_enabled = bool(enabled)
 
         if not enabled:
-            # turn LEDs off
-            for i in range(self.num_pixels):
-                self.pixels[i] = (0,0,0)
-            self.pixels.show()
+            self.on_stop()
 
         Logger.info(self.tag, f"Visualization/audio enabled = {enabled}")
 

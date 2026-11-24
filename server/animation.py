@@ -414,7 +414,7 @@ class Twinkle(Animation):
         super().__init__(pixel_count, pixels, colors, delay, speed, fps_render)
         self.seed = seed
         self.delta = delta
-        self.mDelta = 0
+        self.delta = 0
         self.random_start_points = []
         self.TAG = "Twinkle"
 
@@ -433,7 +433,7 @@ class Twinkle(Animation):
         for i in range(self.pixel_count):
             # Calculate brightness based on wave function and random starting point
             start_point = self.random_start_points[i]
-            radians = (start_point + self.mDelta) % 255
+            radians = (start_point + self.delta) % 255
             raw_brightness = self._triwave8(radians)
             brightness = self._dim8_lin(raw_brightness)
 
@@ -449,7 +449,7 @@ class Twinkle(Animation):
             self.pixels[i] = scaled_color
 
         # Increment the delta for the next update
-        self.mDelta += self.delta
+        self.delta += self.delta
 
 class TwinkleCycle(Animation):
     def __init__(self, pixel_count, pixels, colors, delay=0.01, speed=1, seed=42, delta=1, fps_render=60):
@@ -467,7 +467,7 @@ class TwinkleCycle(Animation):
         super().__init__(pixel_count, pixels, colors, delay, speed, fps_render)
         self.seed = seed
         self.delta = delta
-        self.mDelta = 0
+        self.delta = 0
         self.random_start_points = []
         self.color_indices = [random.randint(0, len(colors) - 1) for _ in range(pixel_count)]
         self.brightness_hit_zero = [False] * self.pixel_count
@@ -488,7 +488,7 @@ class TwinkleCycle(Animation):
         for i in range(self.pixel_count):
             # Calculate brightness based on wave function and random starting point
             start_point = self.random_start_points[i]
-            radians = (start_point + self.mDelta) % 255
+            radians = (start_point + self.delta) % 255
             raw_brightness = self._triwave8(radians)
             brightness = self._dim8_lin(raw_brightness)
 
@@ -513,7 +513,7 @@ class TwinkleCycle(Animation):
             self.pixels[i] = scaled_color
 
         # Increment the delta for the next update
-        self.mDelta += self.delta
+        self.delta += self.delta
 
 class Cover(Animation):
     def __init__(self, pixel_count, pixels, colors, delay=0.03, speed=1, fps_render=60):

@@ -15,12 +15,15 @@ class LightControl:
         self.leds = NeoPixel(LED_PIN, led_size, pixel_order=RGB, auto_write=False, brightness=1.0)
         self.current_palette = None
 
-    def set_color(self, color):
+    def set_color(self, color, is_render = True):
         Logger.info(TAG, f"Setting color to {str(hex(color)).upper()}")
         self.leds.fill(color)
-        self.show()
+        self.current_palette = [color]
 
-    def set_color_pallete(self, colors):
+        if is_render:
+            self.show()
+
+    def set_color_pallete(self, colors, is_render = True):
         Logger.info(TAG, f"Setting color palette with {len(colors)} colors for {LED_COUNT} LEDs.")
         self.current_palette = colors
 
@@ -33,7 +36,8 @@ class LightControl:
             self.leds[index] = colors[index % len(colors)]
 
         # Show the updated LED states
-        self.show()
+        if is_render:
+            self.show()
 
     def reset_palette(self):
         if self.current_palette is None:
