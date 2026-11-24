@@ -71,7 +71,7 @@ TAG = "JsonRpc"
 class JsonRpc:
     def __init__(self):
         # todo add more commands
-        self.mCommands = {
+        self.commands = {
             "set_light" : self._set_light,
             "set_pallete" : self._set_pallete,
             "trigger_effect" : self._trigger_effect,
@@ -96,7 +96,7 @@ class JsonRpc:
         self.animation_controller = None
         self.animation_playlist = None
         self.volume_mixer = Mixer()
-        self.audio_visual_receiver = AudioVisualReceiver(self.light_controller.get_pixels(), DEFAULT_COLOR_PALLETE)
+        self.audio_visual_receiver = AudioVisualReceiver(self.light_controller.get_pixels(), DEFAULT_COLOR_PALLETE, lambda: self.light_controller.reset_palette())
         self.color_palette_manager = ColorPaletteManager()
         self.animation_playlist_manager = AnimationPlaylistManager()
         self.light_controller.set_color_pallete(DEFAULT_COLOR_PALLETE)
@@ -144,11 +144,11 @@ class JsonRpc:
         )
 
     def _call_command(self, command, params):
-        if self.mCommands.get(command) is None:
+        if self.commands.get(command) is None:
             Logger.error(TAG, "JSON-RPC command not found")
             return self._construct_error(METHOD_NOT_FOUND)
 
-        return self.mCommands[command](params)
+        return self.commands[command](params)
 
     def _validate_color_list(self, color_list, default_list):
         if color_list is None or len(color_list) == 0:
@@ -164,10 +164,8 @@ class JsonRpc:
 
         self._generic_teardown()
         color = int(params.get(COLOR_TAG), 16)
-        if self.audio_visual_receiver.is_enabled():
-            self.audio_visual_receiver.set_color_palette([color])
-        else:
-            self.light_controller.set_color(color)
+        self.audio_visual_receiver.set_color_palette([color])
+        self.light_controller.set_color(color, not self.audio_visual_receiver.is_enabled())
         return self._construct_result(True)
 
     def _set_pallete(self, params):
@@ -181,10 +179,9 @@ class JsonRpc:
         color_pallete = params.get(PALLETE_TAG)
         color_pallete = self._validate_color_list(color_pallete, DEFAULT_COLOR_PALLETE)
 
-        if self.audio_visual_receiver.is_enabled():
-            self.audio_visual_receiver.set_color_palette(color_pallete)
-        else:
-            self.light_controller.set_color_pallete(color_pallete)
+        self.audio_visual_receiver.set_color_palette(color_pallete)
+        self.light_controller.set_color_pallete(color_pallete, not self.audio_visual_receiver.is_enabled())
+
         return self._construct_result(True)
 
     def _trigger_effect(self, params):
