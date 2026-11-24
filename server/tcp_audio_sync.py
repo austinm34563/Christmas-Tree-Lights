@@ -26,11 +26,8 @@ CHANNELS = 2
 AUDIO_CHUNK_SIZE = 4096
 AUDIO_CHUNK_BYTES = AUDIO_CHUNK_SIZE * CHANNELS * 2
 
-VIS_CHUNK_SIZE = 1024
-
-MIN_FREQ = 30
-# MAX_FREQ = 20000
-MAX_FREQ = 7902
+VIS_UPDATE_SIZE = 1024
+VIS_ANALYSIS_SIZE = 4096
 
 
 class AudioVisualReceiver:
@@ -73,14 +70,20 @@ class AudioVisualReceiver:
         self.visualizer = FftVisualization(
             num_pixels=self.num_pixels,
             sample_rate=SAMPLE_RATE,
-            min_freq=MIN_FREQ,
-            max_freq=MAX_FREQ,
         )
 
         # Queues
         self.audio_queue = queue.Queue(maxsize=256)
         self.visualization_queue = queue.Queue(maxsize=8)
         self.led_queue = queue.Queue(maxsize=2)
+
+        # Rolling visualization audio buffer
+        self.visualization_buffer = np.zeros(
+            VIS_ANALYSIS_SIZE,
+            dtype=np.float32,
+        )
+
+        self.visualization_samples_filled = 0
 
         self.running = True
 
@@ -112,6 +115,10 @@ class AudioVisualReceiver:
         with self._visualizer_lock:
             visualization.reset()
             self.visualizer = visualization
+
+            # Start with a fresh analysis window.
+            self.visualization_buffer.fill(0.0)
+            self.visualization_samples_filled = 0
 
         # Discard queued frames from the previous visualization.
         for frame_queue in (
@@ -271,14 +278,14 @@ class AudioVisualReceiver:
             # Audio playback should never wait for visualization.
             self.stream.write(pcm)
 
-            # Split into visualization chunks.
-            for i in range(0, AUDIO_CHUNK_SIZE, VIS_CHUNK_SIZE):
-                vis = pcm[i:i + VIS_CHUNK_SIZE]
+            # Split audio into visualization update chunks.
+            for i in range(0, len(pcm), VIS_UPDATE_SIZE):
+                vis = pcm[i:i + VIS_UPDATE_SIZE]
 
-                if len(vis) < VIS_CHUNK_SIZE:
+                if len(vis) < VIS_UPDATE_SIZE:
                     vis = np.pad(
                         vis,
-                        ((0, VIS_CHUNK_SIZE - len(vis)), (0, 0)),
+                        ((0, VIS_UPDATE_SIZE - len(vis)), (0, 0)),
                     )
 
                 mono = (
@@ -311,13 +318,37 @@ class AudioVisualReceiver:
                 if not self.visualization_enabled:
                     continue
 
-            with self._visualizer_lock:
-                visualizer = self.visualizer
-
             with self.palette_lock:
                 palette = list(self.color_palette)
 
-            led_frame = visualizer.process(mono, palette)
+            with self._visualizer_lock:
+                chunk_size = len(mono)
+
+                # Advance the rolling analysis window.
+                if chunk_size >= VIS_ANALYSIS_SIZE:
+                    self.visualization_buffer[:] = mono[-VIS_ANALYSIS_SIZE:]
+                else:
+                    self.visualization_buffer[:-chunk_size] = (
+                        self.visualization_buffer[chunk_size:]
+                    )
+                    self.visualization_buffer[-chunk_size:] = mono
+
+                self.visualization_samples_filled = min(
+                    self.visualization_samples_filled + chunk_size,
+                    VIS_ANALYSIS_SIZE,
+                )
+
+                # Wait until the analysis window is full.
+                if self.visualization_samples_filled < VIS_ANALYSIS_SIZE:
+                    continue
+
+                # Generate a frame using the complete analysis window.
+                visualizer = self.visualizer
+
+                led_frame = visualizer.process(
+                    self.visualization_buffer.copy(),
+                    palette,
+                )
 
             # Keep the LED queue fresh as well.
             try:
