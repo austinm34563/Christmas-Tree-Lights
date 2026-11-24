@@ -3,6 +3,9 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
+MIN_FREQ = 30
+MAX_FREQ = 4000
+
 
 class Visualization(ABC):
     """Base interface for audio-reactive LED visualizations."""
@@ -11,8 +14,8 @@ class Visualization(ABC):
         self,
         num_pixels,
         sample_rate=44100,
-        min_freq=30,
-        max_freq=7902,
+        min_freq=MIN_FREQ,
+        max_freq=MAX_FREQ,
     ):
         self.num_pixels = num_pixels
         self.sample_rate = sample_rate
